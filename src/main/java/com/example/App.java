@@ -1,46 +1,60 @@
 package com.example;
 
-import org.antlr.v4.runtime.CharStream;
-import org.antlr.v4.runtime.CharStreams;
-import org.antlr.v4.runtime.CommonTokenStream;
-import org.antlr.v4.runtime.tree.ParseTree;
-
+import org.antlr.v4.runtime.*;
+import org.antlr.v4.runtime.tree.*;
 import com.example.gen.CompilerLexer;
 import com.example.gen.CompilerParser;
+import java.io.File;
+import java.io.FileOutputStream;
 
 public class App {
-
     public static void main(String[] args) {
-        // 1. входной тестовый код вашего языка в виде строки
-        String sourceCode = "byte x = 5;\n" +
-                            "println(x);\n";
+        String sourceCode = "int x = 15;\n"      +
+                            "int b = 10 + x;\n" +
+                            "int c = 22;\n"     +
+                            "println(b);\n";
 
-        System.out.println("=== Исходный код ===");
+        System.out.println("=== 1. Исходный код ===");
         System.out.println(sourceCode);
 
-        // 2. передаем код в Лексер (он разбивает текст на токены)
+        // запуск Лексера и Парсера ANTLR
         CharStream input = CharStreams.fromString(sourceCode);
         CompilerLexer lexer = new CompilerLexer(input);
-
-        // 3. передаем токены в Парсер (он строит дерево)
         CommonTokenStream tokens = new CommonTokenStream(lexer);
         CompilerParser parser = new CompilerParser(tokens);
+        ParseTree tree = parser.program(); 
 
-        // 4. вызываем стартовое правило грамматики (в .g4 файле это program)
-        ParseTree tree = parser.program();
-
+        // если ошибок синтаксиса нет, переходим к компиляции
         if (parser.getNumberOfSyntaxErrors() == 0) {
-            System.out.println("=== Синтаксический анализ успешен! ===");
+            System.out.println("=== 2. Синтаксический анализ успешен! ===");
             
             try {
-                // запускаем определение и проверку типов
+                // проверка и разметка типов данных
                 TypeChecker typeChecker = new TypeChecker();
                 typeChecker.visit(tree);
+                System.out.println("=== 3. Проверка типов (Семантика) успешна! ===");
                 
-                System.out.println("=== Семантический анализ (проверка типов) успешен! ===");
+                // генерация бинарного байт-кода JVM
+                // передаем карту nodeTypes, которую заполнил TypeChecker
+                CodeGenerator bytecodeGen = new CodeGenerator(typeChecker.getNodeTypes());
+                bytecodeGen.visit(tree);
+                byte[] binaryClassBytes = bytecodeGen.getBytecode();
+                
+                // запись готового .class файла на жесткий диск
+                File outputFile = new File("GeneratedProgram.class");
+                try (FileOutputStream fos = new FileOutputStream(outputFile)) {
+                    fos.write(binaryClassBytes);
+                    System.out.println("=== 4. Компиляция завершена! Создан файл: " + outputFile.getAbsolutePath() + " ===");
+                }
+                
             } catch (RuntimeException e) {
-                System.err.println(e.getMessage());
+                System.err.println("\n[Ошибка компиляции]: " + e.getMessage());
+            } catch (Exception e) {
+                System.err.println("\n[Системная ошибка]: " + e.getMessage());
+                e.printStackTrace();
             }
+        } else {
+            System.err.println("=== Обнаружены синтаксические ошибки! ===");
         }
     }
 }

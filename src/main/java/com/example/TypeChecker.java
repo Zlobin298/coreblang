@@ -2,17 +2,23 @@ package com.example;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.function.Function;
-import java.util.function.Supplier;
+
+import org.antlr.v4.runtime.tree.ParseTreeProperty;
 
 import com.example.gen.CompilerBaseVisitor;
 import com.example.gen.CompilerParser;
 
 // передаем String как generic-тип, чтобы методы возвращали название типа данных
 public class TypeChecker extends CompilerBaseVisitor<String> {
-
     // таблица символов: хранит имя переменной и её тип (например, "x" -> "byte")
     private final Map<String, String> symbolTable = new HashMap<>();
+    // специальная карта ANTLR связывает конкретный узел дерева с его типом
+    private final ParseTreeProperty<String> nodeTypes = new ParseTreeProperty<>();
+
+    // геттер, чтобы передать типы в генератор байт-кода
+    public ParseTreeProperty<String> getNodeTypes() {
+        return nodeTypes;
+    }
 
     // обработка унарного минуса
     @Override
@@ -48,9 +54,22 @@ public class TypeChecker extends CompilerBaseVisitor<String> {
             return "error"; 
         }
 
+        String resultType = left;
+
         // если типы одинаковые (например, int + int), то и результат будет такого же типа
         if (left.equals(right)) {
             return left; 
+        }
+
+        // логика приведения типов если смешиваются byte, short и int
+        if (!left.equals(right)) {
+            if ((left.equals("byte") || left.equals("short") || left.equals("int")) &&
+                (right.equals("byte") || right.equals("short") || right.equals("int"))
+            ) {
+                resultType = "int"; 
+            } else {
+                throw new RuntimeException("Ошибка типов: Нельзя складывать/вычитать " + left + " и " + right);
+            }
         }
 
         // правило неявного приведения типов (автоматическое расширение до double/float)
@@ -64,58 +83,108 @@ public class TypeChecker extends CompilerBaseVisitor<String> {
             return "long";   // расширение до длинного целого
         }
 
-        return "int"; // расширяет меньший тип до int
+        nodeTypes.put(ctx, resultType);
+        return resultType;
     }
 
     @Override
     public String visitVarDecl(CompilerParser.VarDeclContext ctx) {
-        String varType = ctx.TYPE().getText(); // что хочет программист (например, "byte")
+        String varType = ctx.TYPE().getText();
         String varName = ctx.ID().getText();
-        
+
+        // проверяем повторное объявление
         if (symbolTable.containsKey(varName)) {
             throw new RuntimeException("Семантическая ошибка: Переменная '" + varName + "' уже объявлена!");
         }
 
-        // вычисляем тип значения (вернет "byte" для 250, или "int" для 300)
-        String exprType = visit(ctx.expr());
+        // вычисляем тип выражения с правой стороны
+        String exprType = visit(ctx.expr()); 
 
-        // если программист указал byte, а число выдало тип int (вышло за границы) — запрещаем!
-        if (varType.equals("byte") && exprType.equals("int")) {
-            throw new RuntimeException("Ошибка типов: Значение '" + ctx.expr().getText() + 
-                                    "' выходит за рамки кастомного типа byte (от -257 до 256)!");
+        // если справа находится именно числовое литеральное выражение проверяем его границы
+        if (ctx.expr() instanceof CompilerParser.NumberContext) {
+            String numberText = ctx.expr().getText();
+            
+            try {
+                // для целых типов парсим в long
+                if (varType.equals("byte") || varType.equals("short") || varType.equals("int") || varType.equals("long")) {
+                    long value = Long.parseLong(numberText);
+                    
+                    if (varType.equals("byte") && (value < -128 || value > 127)) {
+                        throw new RuntimeException("Ошибка: Число " + value + " не соответствует кастомному типу byte!");
+                    } else if (varType.equals("short") && (value < -32_768 || value > 32_767)) {
+                        throw new RuntimeException("Ошибка: Число " + value + " не соответствует типу short!");
+                    } else if (varType.equals("int") && (value < -2_147_483_648 || value > 2_147_483_647)) {
+                        throw new RuntimeException("Ошибка: Число " + value + " не соответствует типу int!");
+                    }
+                } 
+                // для дробных типов парсим в double и проверяем правильные границы
+                else if (varType.equals("float") || varType.equals("double")) {
+                    double value = Double.parseDouble(numberText);
+                    
+                    if (varType.equals("float") && (value < -Float.MAX_VALUE || value > Float.MAX_VALUE)) {
+                        throw new RuntimeException("Ошибка: Число " + value + " не соответствует типу float!");
+                    }
+                }
+                
+                // если число прошло проверку диапазона, мы разрешаем присваивание
+                exprType = varType; 
+
+            } catch (NumberFormatException e) {
+                throw new RuntimeException("Ошибка: Литерал '" + numberText + "' слишком велик для типа " + varType);
+            }
         }
-        
-        // для остальных типов требуем точное совпадение
+
+        // проверка совместимости типов
         if (!varType.equals(exprType)) {
-            throw new RuntimeException("Ошибка типов: Нельзя присвоить " + exprType + " в переменную типа " + varType);
+            throw new RuntimeException("Ошибка типов: Нельзя присвоить тип " + exprType + " в переменную '" + varName + "' типа " + varType);
         }
 
-        // сохраняем в таблицу символов
+        // сохраняем данные
         symbolTable.put(varName, varType);
+        nodeTypes.put(ctx, varType); // вешаем наклейку типа на всё объявление
         return varType;
     }
 
     @Override
     public String visitNumber(CompilerParser.NumberContext ctx) {
-        // получаем текст числа из исходного кода (например, "250" или "-5")
         String numberText = ctx.INT_LITERAL().getText();
         
         try {
-            // переводим строку в число long, чтобы безопасно проверять большие значения
             long value = Long.parseLong(numberText);
             
-            // настраиваем ваши кастомные строгие границы для типа byte
-            if (value >= -257 && value <= 256) {
-                return "byte"; // если число в этом диапазоне, компилятор считает его типом byte
+            if (value >= -128 && value <= 127) {
+                nodeTypes.put(ctx, "byte");
+                return "byte";
+            } else if (value >= -32_768 && value <= 32_767) {
+                nodeTypes.put(ctx, "short");
+                return "short";
+            } else if (value >= -2_147_483_648 && value <= 2_147_483_647) {
+                nodeTypes.put(ctx, "int");
+                return "int";
             } else {
-                return "int";  // если число больше, оно автоматически становится int
+                nodeTypes.put(ctx, "long");
+                return "long";
             }
-            
+
         } catch (NumberFormatException e) {
-            // если пользователь написал число, которое не влезает даже в long
-            throw new RuntimeException("Семантическая ошибка: Число '" + numberText + "' слишком велико для базовых типов!");
+            try {
+                double doubleValue = Double.parseDouble(numberText);
+                
+                if (doubleValue >= -Float.MAX_VALUE && doubleValue <= Float.MAX_VALUE) {
+                    nodeTypes.put(ctx, "float");
+                    return "float";
+                } else if (doubleValue >= -Double.MAX_VALUE && doubleValue <= Double.MAX_VALUE) {
+                    nodeTypes.put(ctx, "double");
+                    return "double";
+                }
+            } catch (NumberFormatException ex) {
+                throw new RuntimeException("Семантическая ошибка: Число '" + numberText + "' слишком велико для всех известных числовых типов!");
+            }
         }
+        
+        throw new RuntimeException("Семантическая ошибка: Не удалось определить тип для числа '" + numberText + "'");
     }
+
 
     @Override
     public String visitVariable(CompilerParser.VariableContext ctx) {
@@ -126,8 +195,11 @@ public class TypeChecker extends CompilerBaseVisitor<String> {
             throw new RuntimeException("Семантическая ошибка: Переменная '" + varName + "' не объявлена!");
         }
 
+        String type = symbolTable.get(varName);
+
         // еозвращаем тип переменной из таблицы
-        return symbolTable.get(varName);
+        nodeTypes.put(ctx, type);
+        return type;
     }
 
     @Override
@@ -140,17 +212,19 @@ public class TypeChecker extends CompilerBaseVisitor<String> {
     // обработка выражений в скобках
     @Override
     public String visitParens(CompilerParser.ParensContext ctx) {
-        return visit(ctx.expr());
+        String type = visit(ctx.expr());
+        nodeTypes.put(ctx, type);
+        return type;
     }
 
     // проверка типа что это число
     private boolean isNumber(String type) {
-    return "byte".equals(type) ||
-           "short".equals(type) || 
-           "int".equals(type) ||
-           "long".equals(type) ||
-           "float".equals(type) || 
-           "double".equals(type);
-}
+        return "byte".equals(type) ||
+            "short".equals(type)   || 
+            "int".equals(type)     ||
+            "long".equals(type)    ||
+            "float".equals(type)   || 
+            "double".equals(type);
+    }
 }
 
