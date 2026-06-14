@@ -178,6 +178,39 @@ public class CodeGenerator extends CompilerBaseVisitor<Void> implements Opcodes 
     }
 
     @Override
+    public Void visitMulDiv(CompilerParser.MulDivContext ctx) {
+        visit(ctx.expr(0));
+        visit(ctx.expr(1));
+
+        String type = nodeTypes.get(ctx);
+        String op = ctx.op.getText();
+
+        if (op.equals("*")) {
+            switch (type) {
+                case "long":   mv.visitInsn(LMUL); break;
+                case "float":  mv.visitInsn(FMUL); break;
+                case "double": mv.visitInsn(DMUL); break;
+                case "byte":
+                case "short":
+                case "int":
+                default:       mv.visitInsn(IMUL); break;
+            }
+        } else if (op.equals("/")) {
+            switch (type) {
+                case "long":   mv.visitInsn(LDIV); break;
+                case "float":  mv.visitInsn(FDIV); break;
+                case "double": mv.visitInsn(DDIV); break;
+                case "byte":
+                case "short":
+                case "int":
+                default:       mv.visitInsn(IDIV); break;
+            }
+        }
+
+        return null;
+    }
+
+    @Override
     public Void visitVariable(CompilerParser.VariableContext ctx) {
         String varName = ctx.ID().getText();
         

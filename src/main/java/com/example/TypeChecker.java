@@ -74,16 +74,42 @@ public class TypeChecker extends CompilerBaseVisitor<String> {
 
         // правило неявного приведения типов (автоматическое расширение до double/float)
         if ("double".equals(left) || "double".equals(right)) {
-            return "double"; // любое число + double дает double
+            resultType = "double"; // любое число + double дает double
         }
         if ("float".equals(left) || "float".equals(right)) {
-            return "float";  // любое число + float (если нет double) дает float
+            resultType = "float";  // любое число + float (если нет double) дает float
         }
         if ("long".equals(left) || "long".equals(right)) {
-            return "long";   // расширение до длинного целого
+            resultType = "long";   // расширение до длинного целого
         }
 
         nodeTypes.put(ctx, resultType);
+        return resultType;
+    }
+
+    // обработка бинарного умножения и деления
+    @Override
+    public String visitMulDiv(CompilerParser.MulDivContext ctx) {
+        String left = visit(ctx.expr(0));  // левый операнд
+        String right = visit(ctx.expr(1)); // правый операнд
+        
+        if (!isNumber(left) || !isNumber(right)) {
+            throw new RuntimeException(String.format("Семантическая ошибка: Нельзя применить операцию умножения/деления к нечисловым типам '%s' и '%s'", left, right)); 
+        }
+
+        String resultType;
+
+        if (left.equals("double") || right.equals("double")) {
+            resultType = "double";
+        } else if (left.equals("float") || right.equals("float")) {
+            resultType = "float";
+        } else if (left.equals("long") || right.equals("long")) {
+            resultType = "long";
+        } else {
+            resultType = "int";
+        }
+
+        nodeTypes.put(ctx, resultType);        
         return resultType;
     }
 

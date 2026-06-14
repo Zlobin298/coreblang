@@ -10,9 +10,10 @@ import java.io.FileOutputStream;
 public class App {
     public static void main(String[] args) {
         String sourceCode = "int x = 15;\n"      +
-                            "int b = 10 + x;\n" +
-                            "int c = 22;\n"     +
-                            "println(b);\n";
+                            "int b = 10 * x;\n"  +
+                            "int c = 22 / 2;\n"  +
+                            "println(b);\n"      +
+                            "println(c);\n";
 
         System.out.println("=== 1. Исходный код ===");
         System.out.println(sourceCode);
