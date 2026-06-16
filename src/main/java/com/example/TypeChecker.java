@@ -251,6 +251,47 @@ public class TypeChecker extends CompilerBaseVisitor<String> {
     }
 
     @Override
+    public String visitAssignment(CompilerParser.AssignmentContext ctx) {
+        String varType;
+        String exprType;
+
+        // простое переприсваивание в переменную
+        if (ctx.ID() != null) {
+            String varName = ctx.ID().getText();
+
+            // проверяем, что переменная была объявлена ранее через varDecl
+            if (!symbolTable.containsKey(varName)) throw new RuntimeException("Семантическая ошибка: Переменная '" + varName + "' не объявлена!");
+
+            varType = symbolTable.get(varName);
+            exprType = visit(ctx.expr(0));
+        }
+
+        // запись в элемент массива
+        else {
+            String arrayType = visit(ctx.expr(0));
+
+            if (arrayType == null || !arrayType.contains("[")) throw new RuntimeException("Семантическая ошибка: Попытка обратиться по индексу к переменной, которая не является массивом!");
+
+            // вычисляем тип индекса
+            String indexType = visit(ctx.expr(1));
+            if (!"int".equals(indexType) && !"byte".equals(indexType) && !"short".equals(indexType))
+                throw new RuntimeException("Семантическая ошибка: Индекс массива должен быть целым числом, но передан '" + indexType + "'");
+
+            varType = arrayType.replace("[]", "");
+            exprType = visit(ctx.expr(2));
+        }
+
+        // проверка совместимости типов
+        if (!varType.equals(exprType)) {
+            if (isNumber(varType) && isNumber(exprType) && getTypeRank(varType) >= getTypeRank(exprType)) { }
+            else throw new RuntimeException("Ошибка типов: Нельзя присвоить значение типа '" + exprType +"' в переменную типа '" + varType + "'");
+        }
+
+        nodeTypes.put(ctx, varType);
+        return varType;
+    }
+
+    @Override
     public String visitVariable(CompilerParser.VariableContext ctx) {
         String varName = ctx.ID().getText();
 

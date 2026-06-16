@@ -13,7 +13,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
 
-// TODO настроить метод visitAssignment для инициализации переменных
 // наследуемся от Visitor возвращаем Void так как мы пишем напрямую в бинарный поток ASM
 public class CodeGenerator extends CompilerBaseVisitor<Void> implements Opcodes {
     private final ParseTreeProperty<String> nodeTypes;
@@ -68,7 +67,8 @@ public class CodeGenerator extends CompilerBaseVisitor<Void> implements Opcodes 
 
         // достаем готовую сигнатуру метода из таблицы функций компилятора
         MethodSignature sig = functionTable.get(methodName);
-        if (sig == null) throw new RuntimeException("Ошибка генерации байт-кода: Неизвестный метод '" + methodName + "'");
+        if (sig == null)
+            throw new RuntimeException("Ошибка генерации байт-кода: Неизвестный метод '" + methodName + "'");
 
         // генерируем код для вычисления аргументов
         if (ctx.exprArgs() != null) {
@@ -80,7 +80,8 @@ public class CodeGenerator extends CompilerBaseVisitor<Void> implements Opcodes 
         org.antlr.v4.runtime.RuleContext parent = ctx.getParent();
         while (parent != null && !(parent instanceof CompilerParser.ClassDeclContext))
             parent = parent.getParent();
-        if (parent == null) throw new RuntimeException("Критическая ошибка: Вызов метода '" + methodName + "' находится вне класса!");
+        if (parent == null)
+            throw new RuntimeException("Критическая ошибка: Вызов метода '" + methodName + "' находится вне класса!");
         String currentClassName = ((CompilerParser.ClassDeclContext) parent).ID().getText();
 
         // строим jvm-дескриптор метода динамически на основе данных из MethodSignature
@@ -412,6 +413,59 @@ public class CodeGenerator extends CompilerBaseVisitor<Void> implements Opcodes 
         if (type == null) type = "int";
 
         mv.visitVarInsn(getLoadOpcode(type), index);
+        return null;
+    }
+
+    @Override
+    public Void visitAssignment(CompilerParser.AssignmentContext ctx) {
+        //  простое присваивание в обычную переменную
+        if (ctx.ID() != null) {
+            String varName = ctx.ID().getText();
+
+            // проверяем, что переменная вообще существует в памяти компилятора
+            if (!variableIndexes.containsKey(varName)) throw new RuntimeException("Ошибка генерации байт-кода: Переменная '" + varName + "' не объявлена!");
+
+            int index = variableIndexes.get(varName);
+
+            // вычисляем выражение с правой стороны знака =
+            visit(ctx.expr(0));
+
+            // узнаем точный тип переменной, который определил TypeChecker для этого узла присваивания
+            String varType = nodeTypes.get(ctx);
+            if (varType == null) varType = "int";
+
+            // сохраняем значение со стека в локальную переменную
+            mv.visitVarInsn(getStoreOpcode(varType), index);
+        }
+
+        // запись значения внутрь элемента массива
+        else {
+            // загружаем сам массив на стек jvm
+            visit(ctx.expr(0));
+
+            // вычисляем индекс элемента внутри квадратных скобок
+            visit(ctx.expr(1));
+
+            // вычисляем значение, которое хотим записать
+            visit(ctx.expr(2));
+
+            // узнаем базовый тип массива
+            String arrayType = nodeTypes.get(ctx.expr(0));
+            String baseType = (arrayType != null) ? arrayType.replace("[]", "") : "int";
+
+            // вызываем специальную команду jvm для записи в массив в зависимости от типа данных
+            switch (baseType) {
+                case "long" -> mv.visitInsn(LASTORE);
+                case "float" -> mv.visitInsn(FASTORE);
+                case "double" -> mv.visitInsn(DASTORE);
+                case "byte" -> mv.visitInsn(BASTORE);
+                case "short" -> mv.visitInsn(SASTORE);
+                case "char" -> mv.visitInsn(CASTORE);
+                case "int" -> mv.visitInsn(IASTORE);
+                default -> mv.visitInsn(AASTORE);
+            }
+        }
+
         return null;
     }
 
