@@ -4,22 +4,27 @@ import com.example.gen.CompilerBaseVisitor;
 import com.example.gen.CompilerParser;
 import org.antlr.v4.runtime.tree.ParseTreeProperty;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
 
 // передаем String как generic-тип, чтобы методы возвращали название типа данных
 public class TypeChecker extends CompilerBaseVisitor<String> {
-    // таблица символов: хранит имя переменной и её тип (например, "x" -> "byte")
-    private final Map<String, String> symbolTable = new HashMap<>();
-    // специальная карта ANTLR связывает конкретный узел дерева с его типом
-    private final ParseTreeProperty<String> nodeTypes = new ParseTreeProperty<>();
-    // хранит тип возврата для метода 
-    private String currentMethodReturnType = "void";
+    private final Map<String, String> symbolTable = new HashMap<>(); // таблица символов: хранит имя переменной и её тип
+    private final Map<String, MethodSignature> functionTable = new HashMap<>(); // таблица функций
+    private final ParseTreeProperty<String> nodeTypes = new ParseTreeProperty<>(); // специальная карта ANTLR связывает конкретный узел дерева с его типом
+    private String currentMethodReturnType = "void"; // хранит тип возврата для метода
 
     // геттер, чтобы передать типы в генератор байт-кода
     public ParseTreeProperty<String> getNodeTypes() {
         return nodeTypes;
+    }
+
+    // геттер, чтобы передать таблицу в CodeGenerator вместе с nodeTypes
+    public Map<String, MethodSignature> getFunctionTable() {
+        return functionTable;
     }
 
     // обработка унарного минуса
@@ -279,7 +284,25 @@ public class TypeChecker extends CompilerBaseVisitor<String> {
     // читаем что метод должен вернуть 
     @Override
     public String visitMethodDecl(CompilerParser.MethodDeclContext ctx) {
-        currentMethodReturnType = "void";
+        String methodName = ctx.ID().getText();
+        String returnType = ctx.typeSpec() != null ? ctx.typeSpec().getText() : "void";
+
+        // динамически находим имя класса в котором объявлен этот метод
+        CompilerParser.ClassDeclContext classCtx = (CompilerParser.ClassDeclContext) ctx.getParent();
+        String className = classCtx.ID().getText();
+
+        // собираем типы всех входящих аргументов в список
+        List<String> argTypes = new ArrayList<>();
+        if (ctx.formalArgs() != null) {
+            for (var argCtx : ctx.formalArgs().formalArg()) {
+                argTypes.add(argCtx.typeSpec().getText());
+            }
+        }
+
+        // сохраняем готовую сигнатуру метода в таблицу функций
+        functionTable.put(methodName, new MethodSignature(className, returnType, argTypes));
+
+        currentMethodReturnType = returnType;
         if (ctx.typeSpec() != null) currentMethodReturnType = ctx.typeSpec().getText();
 
         BiFunction<String, String, Boolean> isCompatible = (expected, actual) -> {

@@ -11,14 +11,14 @@ import java.io.FileOutputStream;
 public class App {
     public static void main(String[] args) {
         String sourceCode =
-                "class GeneratedProgram {\n" +
+                "class Main {\n" +
                 "    static float getCalculatedValue() {\n" +
                 "        float a = 10 + 5 - 5 * 10 / 100.0f;\n" +
                 "        a + 5\n" +
                 "    }\n" +
                 "    \n" +
                 "    static void main(String[] args) {\n" +
-                "        int result = getCalculatedValue();\n" +
+                "        float result = getCalculatedValue();\n" +
                 "        println(result);\n" +
                 "    }\n" +
                 "}\n";
@@ -52,7 +52,7 @@ public class App {
 
                 // генерация бинарного байт-кода JVM
                 // передаем карту nodeTypes, которую заполнил TypeChecker
-                CodeGenerator bytecodeGen = new CodeGenerator(typeChecker.getNodeTypes());
+                CodeGenerator bytecodeGen = new CodeGenerator(typeChecker.getNodeTypes(), typeChecker.getFunctionTable());
                 bytecodeGen.visit(tree);
                 byte[] binaryClassBytes = bytecodeGen.getBytecode();
 

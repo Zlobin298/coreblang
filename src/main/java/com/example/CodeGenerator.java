@@ -3,6 +3,7 @@ package com.example;
 import com.example.gen.CompilerBaseVisitor;
 import com.example.gen.CompilerParser;
 
+import org.antlr.v4.runtime.RuleContext;
 import org.antlr.v4.runtime.tree.ParseTreeProperty;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.MethodVisitor;
@@ -16,6 +17,7 @@ import java.util.function.Function;
 // наследуемся от Visitor возвращаем Void так как мы пишем напрямую в бинарный поток ASM
 public class CodeGenerator extends CompilerBaseVisitor<Void> implements Opcodes {
     private final ParseTreeProperty<String> nodeTypes;
+    private final Map<String, MethodSignature> functionTable;
 
     private ClassWriter cw;
     private MethodVisitor mv;
@@ -24,8 +26,9 @@ public class CodeGenerator extends CompilerBaseVisitor<Void> implements Opcodes 
     private int nextVariableIndex;
 
     // Конструктор принимает готовые типы из TypeChecker
-    public CodeGenerator(ParseTreeProperty<String> nodeTypes) {
+    public CodeGenerator(ParseTreeProperty<String> nodeTypes, Map<String, MethodSignature> functionTable) {
         this.nodeTypes = nodeTypes;
+        this.functionTable = functionTable;
     }
 
     // метод возвращает готовый бинарный массив байт класса
@@ -63,16 +66,32 @@ public class CodeGenerator extends CompilerBaseVisitor<Void> implements Opcodes 
     public Void visitMethodCall(CompilerParser.MethodCallContext ctx) {
         String methodName = ctx.ID().getText();
 
+        // достаем готовую сигнатуру метода из таблицы функций компилятора
+        MethodSignature sig = functionTable.get(methodName);
+        if (sig == null) throw new RuntimeException("Ошибка генерации байт-кода: Неизвестный метод '" + methodName + "'");
+
+        // генерируем код для вычисления аргументов
         if (ctx.exprArgs() != null) {
             for (var exprCtx : ctx.exprArgs().expr())
                 visit(exprCtx);
         }
 
-        if (methodName.equals("getCalculatedValue")) {
-            mv.visitMethodInsn(INVOKESTATIC, "GeneratedProgram", "getCalculatedValue", "()I", false);
-        } else {
-            throw new RuntimeException("Ошибка генерации байт-кода: Неизвестный метод " + methodName);
-        }
+        // поднимаемся по дереву вверх до объявления класса, чтобы узнать имя текущего класса
+        org.antlr.v4.runtime.RuleContext parent = ctx.getParent();
+        while (parent != null && !(parent instanceof CompilerParser.ClassDeclContext))
+            parent = parent.getParent();
+        if (parent == null) throw new RuntimeException("Критическая ошибка: Вызов метода '" + methodName + "' находится вне класса!");
+        String currentClassName = ((CompilerParser.ClassDeclContext) parent).ID().getText();
+
+        // строим jvm-дескриптор метода динамически на основе данных из MethodSignature
+        StringBuilder descriptorBuilder = new StringBuilder("()");
+
+        // добавляем букву возвращаемого типа метода
+        String returnType = sig.returnType();
+        descriptorBuilder.append(returnType.equals("void") ? "V" : getJvmDescriptor(returnType));
+
+        // генерируем инструкцию вызова с динамическим классом, методом и дескриптором
+        mv.visitMethodInsn(INVOKESTATIC, currentClassName, methodName, descriptorBuilder.toString(), false);
 
         return null;
     }
@@ -239,15 +258,15 @@ public class CodeGenerator extends CompilerBaseVisitor<Void> implements Opcodes 
 
         if (type.equals("float")) {
             float value = Float.parseFloat(cleanNumber);
-            if (value == 0.0f)      mv.visitInsn(FCONST_0);
+            if (value == 0.0f) mv.visitInsn(FCONST_0);
             else if (value == 1.0f) mv.visitInsn(FCONST_1);
             else if (value == 2.0f) mv.visitInsn(FCONST_2);
-            else                    mv.visitLdcInsn(value);
+            else mv.visitLdcInsn(value);
         } else if (type.equals("double")) {
             double value = Double.parseDouble(cleanNumber);
-            if (value == 0.0)      mv.visitInsn(DCONST_0);
+            if (value == 0.0) mv.visitInsn(DCONST_0);
             else if (value == 1.0) mv.visitInsn(DCONST_1);
-            else                   mv.visitLdcInsn(value);
+            else mv.visitLdcInsn(value);
         }
 
         return null;
@@ -255,13 +274,28 @@ public class CodeGenerator extends CompilerBaseVisitor<Void> implements Opcodes 
 
     @Override
     public Void visitAddSub(CompilerParser.AddSubContext ctx) {
-        // генерируем код для левой части
-        visit(ctx.expr(0));
-        // генерируем код для правой части
-        visit(ctx.expr(1));
-
         // узнаем точный тип этого математического узла из разметки TypeChecker
         String type = nodeTypes.get(ctx);
+        if (type == null) type = "int";
+
+        // генерируем код для левой части
+        visit(ctx.expr(0));
+        String leftType = nodeTypes.get(ctx.expr(0));
+
+        if (leftType.equals("int") || leftType.equals("byte") || leftType.equals("short")) {
+            if (type.equals("float")) mv.visitInsn(I2F);
+            else if (type.equals("double")) mv.visitInsn(I2D);
+        }
+
+        // генерируем код для правой части
+        visit(ctx.expr(1));
+        String rightType = nodeTypes.get(ctx.expr(1));
+
+        if (rightType.equals("int") || rightType.equals("byte") || rightType.equals("short")) {
+            if (type.equals("float")) mv.visitInsn(I2F);
+            else if (type.equals("double")) mv.visitInsn(I2D);
+        }
+
         // узнаем, какая именно операция происходит: "+" или "-"
         String op = ctx.op.getText();
 
@@ -303,10 +337,19 @@ public class CodeGenerator extends CompilerBaseVisitor<Void> implements Opcodes 
 
     @Override
     public Void visitMulDiv(CompilerParser.MulDivContext ctx) {
+        String type = nodeTypes.get(ctx);
+        if (type == null) type = "int";
+
         visit(ctx.expr(0));
+        String leftType = nodeTypes.get(ctx.expr(0));
+
+        if (leftType.equals("int") || leftType.equals("byte") || leftType.equals("short")) {
+            if (type.equals("float")) mv.visitInsn(I2F);
+            else if (type.equals("double")) mv.visitInsn(I2D);
+        }
+
         visit(ctx.expr(1));
 
-        String type = nodeTypes.get(ctx);
         String op = ctx.op.getText();
 
         if (op.equals("*")) {
