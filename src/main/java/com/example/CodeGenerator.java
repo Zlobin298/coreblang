@@ -10,6 +10,8 @@ import org.objectweb.asm.Opcodes;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Function;
+
 // TODO настроить метод visitAssignment для инициализации переменных
 // наследуемся от Visitor возвращаем Void так как мы пишем напрямую в бинарный поток ASM
 public class CodeGenerator extends CompilerBaseVisitor<Void> implements Opcodes {
@@ -52,7 +54,7 @@ public class CodeGenerator extends CompilerBaseVisitor<Void> implements Opcodes 
         }
 
         int index = variableIndexes.get(varName);
-        
+
         mv.visitVarInsn(getStoreOpcode(varType), index);
         return null;
     }
@@ -83,16 +85,26 @@ public class CodeGenerator extends CompilerBaseVisitor<Void> implements Opcodes 
         if (type == null) type = "void";
 
         switch (type) {
-            case "long":    mv.visitInsn(LRETURN); break;
-            case "float":   mv.visitInsn(FRETURN); break;
-            case "double":  mv.visitInsn(DRETURN); break;
+            case "long":
+                mv.visitInsn(LRETURN);
+                break;
+            case "float":
+                mv.visitInsn(FRETURN);
+                break;
+            case "double":
+                mv.visitInsn(DRETURN);
+                break;
             case "byte":
             case "short":
             case "int":
             case "char":
-            case "boolean": mv.visitInsn(IRETURN); break;
+            case "boolean":
+                mv.visitInsn(IRETURN);
+                break;
             case "void":
-            default:        mv.visitInsn(RETURN); break;
+            default:
+                mv.visitInsn(RETURN);
+                break;
         }
 
         return null;
@@ -108,6 +120,14 @@ public class CodeGenerator extends CompilerBaseVisitor<Void> implements Opcodes 
 
         this.variableIndexes = new HashMap<>();
         this.nextVariableIndex = isStatic ? 0 : 1;
+
+        Function<String, Integer> getReturnOpcode = type -> switch (type) {
+            case "long" -> LRETURN;
+            case "float" -> FRETURN;
+            case "double" -> DRETURN;
+            case "byte", "short", "int", "char", "boolean" -> IRETURN;
+            default -> RETURN;
+        };
 
         // реализовываем сдвиг аргументов
         if (ctx.formalArgs() != null) {
@@ -131,9 +151,11 @@ public class CodeGenerator extends CompilerBaseVisitor<Void> implements Opcodes 
         for (var statCtx : ctx.stat())
             visit(statCtx);
 
+        if (ctx.tailExpr() != null) visit(ctx.tailExpr());
         if (returnType.equals("void")) mv.visitInsn(RETURN);
-        
-        mv.visitMaxs(0, 0); // автоматически строит стековую таблицу
+        else mv.visitInsn(getReturnOpcode.apply(returnType));
+
+        mv.visitMaxs(0, 0);
         mv.visitEnd();
         return null;
     }
@@ -143,7 +165,7 @@ public class CodeGenerator extends CompilerBaseVisitor<Void> implements Opcodes 
         String className = ctx.ID().getText();
 
         this.cw = new ClassWriter(ClassWriter.COMPUTE_FRAMES);
-        
+
         this.cw.visit(V21, ACC_PUBLIC, className, null, "java/lang/Object", null);
 
         MethodVisitor init = cw.visitMethod(ACC_PUBLIC, "<init>", "()V", null, null);
@@ -171,8 +193,8 @@ public class CodeGenerator extends CompilerBaseVisitor<Void> implements Opcodes 
         // генерируем байт-код для вычисления выражения (оно ложится на стек JVM)
         visit(ctx.expr());
 
-        String exprType = nodeTypes.get(ctx.expr()); 
-        
+        String exprType = nodeTypes.get(ctx.expr());
+
         // переводим его в дескриптор JVM ("I", "J", "Z" и т.д.)
         String jvmType = getJvmDescriptor(exprType);
 
@@ -188,29 +210,32 @@ public class CodeGenerator extends CompilerBaseVisitor<Void> implements Opcodes 
 
         if (type.equals("byte") || type.equals("short") || type.equals("int")) {
             int value = Integer.parseInt(numberText);
-            
+
             // быстрые низкоуровневые оптимизации JVM для экономии байт-кода
-            if (value >= -1 && value <= 5)              mv.visitInsn(ICONST_0 + value); // инструкции ICONST_M1, ICONST_0 ... ICONST_5 (1 байт)
-            else if (value >= -128 && value <= 127)     mv.visitIntInsn(BIPUSH, value); // положить однобайтовое число (2 байта из-за инструкции .class)
-            else if (value >= -32768 && value <= 32767) mv.visitIntInsn(SIPUSH, value); // положить двухбайтовое число (3 байта)
-            else                                        mv.visitLdcInsn(value);         // Загрузка 4-байтового int константы из Constant Pool
+            if (value >= -1 && value <= 5)
+                mv.visitInsn(ICONST_0 + value); // инструкции ICONST_M1, ICONST_0 ... ICONST_5 (1 байт)
+            else if (value >= -128 && value <= 127)
+                mv.visitIntInsn(BIPUSH, value); // положить однобайтовое число (2 байта из-за инструкции .class)
+            else if (value >= -32768 && value <= 32767)
+                mv.visitIntInsn(SIPUSH, value); // положить двухбайтовое число (3 байта)
+            else mv.visitLdcInsn(value);         // Загрузка 4-байтового int константы из Constant Pool
         } else if (type.equals("long")) {
             long value = Long.parseLong(numberText);
-            
-            if (value == 0)      mv.visitInsn(LCONST_0); // быстрая загрузка нуля для long
+
+            if (value == 0) mv.visitInsn(LCONST_0); // быстрая загрузка нуля для long
             else if (value == 1) mv.visitInsn(LCONST_1); // быстрая загрузка единицы для long
-            else                 mv.visitLdcInsn(value); // загрузка 8-байтового long константы из Constant Pool
+            else mv.visitLdcInsn(value); // загрузка 8-байтового long константы из Constant Pool
         } else if (type.equals("float")) {
             float value = Float.parseFloat(numberText);
-            if (value == 0.0f)      mv.visitInsn(FCONST_0);
+            if (value == 0.0f) mv.visitInsn(FCONST_0);
             else if (value == 2.0f) mv.visitInsn(FCONST_2);
             else if (value == 1.0f) mv.visitInsn(FCONST_1);
-            else                    mv.visitLdcInsn(value);
+            else mv.visitLdcInsn(value);
         } else if (type.equals("double")) {
             double value = Double.parseDouble(numberText);
-            if (value == 0.0)      mv.visitInsn(DCONST_0);
+            if (value == 0.0) mv.visitInsn(DCONST_0);
             else if (value == 1.0) mv.visitInsn(DCONST_1);
-            else                   mv.visitLdcInsn(value);
+            else mv.visitLdcInsn(value);
         }
 
         return null;
@@ -231,17 +256,33 @@ public class CodeGenerator extends CompilerBaseVisitor<Void> implements Opcodes 
         // выбираем правильную команду процессора JVM в зависимости от типа данных
         if (op.equals("+")) {
             switch (type) {
-                case "long":   mv.visitInsn(LADD); break; // сложение 64-битных long
-                case "float":  mv.visitInsn(FADD); break; // сложение float
-                case "double": mv.visitInsn(DADD); break; // сложение double
-                default:       mv.visitInsn(IADD); break; // byte, short, int складываются через IADD
+                case "long":
+                    mv.visitInsn(LADD);
+                    break; // сложение 64-битных long
+                case "float":
+                    mv.visitInsn(FADD);
+                    break; // сложение float
+                case "double":
+                    mv.visitInsn(DADD);
+                    break; // сложение double
+                default:
+                    mv.visitInsn(IADD);
+                    break; // byte, short, int складываются через IADD
             }
         } else if (op.equals("-")) {
             switch (type) {
-                case "long":   mv.visitInsn(LSUB); break;
-                case "float":  mv.visitInsn(FSUB); break;
-                case "double": mv.visitInsn(DSUB); break;
-                default:       mv.visitInsn(ISUB); break;
+                case "long":
+                    mv.visitInsn(LSUB);
+                    break;
+                case "float":
+                    mv.visitInsn(FSUB);
+                    break;
+                case "double":
+                    mv.visitInsn(DSUB);
+                    break;
+                default:
+                    mv.visitInsn(ISUB);
+                    break;
             }
         }
 
@@ -258,23 +299,39 @@ public class CodeGenerator extends CompilerBaseVisitor<Void> implements Opcodes 
 
         if (op.equals("*")) {
             switch (type) {
-                case "long":   mv.visitInsn(LMUL); break;
-                case "float":  mv.visitInsn(FMUL); break;
-                case "double": mv.visitInsn(DMUL); break;
+                case "long":
+                    mv.visitInsn(LMUL);
+                    break;
+                case "float":
+                    mv.visitInsn(FMUL);
+                    break;
+                case "double":
+                    mv.visitInsn(DMUL);
+                    break;
                 case "byte":
                 case "short":
                 case "int":
-                default:       mv.visitInsn(IMUL); break;
+                default:
+                    mv.visitInsn(IMUL);
+                    break;
             }
         } else if (op.equals("/")) {
             switch (type) {
-                case "long":   mv.visitInsn(LDIV); break;
-                case "float":  mv.visitInsn(FDIV); break;
-                case "double": mv.visitInsn(DDIV); break;
+                case "long":
+                    mv.visitInsn(LDIV);
+                    break;
+                case "float":
+                    mv.visitInsn(FDIV);
+                    break;
+                case "double":
+                    mv.visitInsn(DDIV);
+                    break;
                 case "byte":
                 case "short":
                 case "int":
-                default:       mv.visitInsn(IDIV); break;
+                default:
+                    mv.visitInsn(IDIV);
+                    break;
             }
         }
 
@@ -284,11 +341,11 @@ public class CodeGenerator extends CompilerBaseVisitor<Void> implements Opcodes 
     @Override
     public Void visitVariable(CompilerParser.VariableContext ctx) {
         String varName = ctx.ID().getText();
-        
+
         if (!variableIndexes.containsKey(varName)) {
             throw new RuntimeException("Ошибка генерации кода: Попытка прочитать неинициализированную переменную '" + varName + "'");
         }
-        
+
         int index = variableIndexes.get(varName);
         String type = nodeTypes.get(ctx);
         if (type == null) type = "int";
@@ -306,12 +363,12 @@ public class CodeGenerator extends CompilerBaseVisitor<Void> implements Opcodes 
     public Void visitArrayCreation(CompilerParser.ArrayCreationContext ctx) {
         for (var exprCtx : ctx.expr()) visit(exprCtx);
         String baseType = ctx.getChild(1).getText();
-        
+
         int dimensions = 0;
         for (int i = 0; i < ctx.getChildCount(); i++) {
             if (ctx.getChild(i).getText().equals("[")) dimensions++;
         }
-        
+
         if (dimensions > 1) {
             String arrayDescriptor = "[".repeat(dimensions) + getJvmTypeLetter(baseType);
             mv.visitMultiANewArrayInsn(arrayDescriptor, ctx.expr().size());
@@ -346,27 +403,27 @@ public class CodeGenerator extends CompilerBaseVisitor<Void> implements Opcodes 
 
     private String getJvmDescriptor(String myType) {
         return switch (myType) {
-            case "long" ->    "J";
-            case "float" ->   "F";
-            case "double" ->  "D";
+            case "long" -> "J";
+            case "float" -> "F";
+            case "double" -> "D";
             case "boolean" -> "Z";
-            case "char" ->    "C";
-            default ->        "I"; // byte и short обрабатываются как int
+            case "char" -> "C";
+            default -> "I"; // byte и short обрабатываются как int
         };
     }
 
     private String getJvmMethodDescriptor(String myType) {
         return switch (myType) {
-            case "void" ->    "V";
+            case "void" -> "V";
             case "boolean" -> "Z";
-            case "char" ->    "C";
-            case "byte" ->    "B";
-            case "short" ->   "S";
-            case "int" ->     "I";
-            case "long" ->    "J";
-            case "float" ->   "F";
-            case "double" ->  "D";
-            default ->        "Ljava/lang/Object;";
+            case "char" -> "C";
+            case "byte" -> "B";
+            case "short" -> "S";
+            case "int" -> "I";
+            case "long" -> "J";
+            case "float" -> "F";
+            case "double" -> "D";
+            default -> "Ljava/lang/Object;";
         };
     }
 
@@ -374,15 +431,15 @@ public class CodeGenerator extends CompilerBaseVisitor<Void> implements Opcodes 
     private String getJvmTypeLetter(String type) {
         return switch (type) {
             case "boolean" -> "Z";
-            case "char" ->    "C";
-            case "byte" ->    "B";
-            case "short" ->   "S";
-            case "int" ->     "I";
-            case "long" ->    "J";
-            case "float" ->   "F";
-            case "double" ->  "D";
-            case "String" ->  "Ljava/lang/String;";
-            default ->        "L" + type + ";";
+            case "char" -> "C";
+            case "byte" -> "B";
+            case "short" -> "S";
+            case "int" -> "I";
+            case "long" -> "J";
+            case "float" -> "F";
+            case "double" -> "D";
+            case "String" -> "Ljava/lang/String;";
+            default -> "L" + type + ";";
         };
     }
 
@@ -402,21 +459,21 @@ public class CodeGenerator extends CompilerBaseVisitor<Void> implements Opcodes 
 
     private int getStoreOpcode(String type) {
         return switch (type) {
-            case "long" ->   LSTORE;
-            case "float" ->  FSTORE;
+            case "long" -> LSTORE;
+            case "float" -> FSTORE;
             case "double" -> DSTORE;
             case "byte", "short", "int", "char", "boolean" -> ISTORE;
-            default ->       ASTORE;
+            default -> ASTORE;
         };
     }
 
     private int getLoadOpcode(String type) {
         return switch (type) {
-            case "long" ->   LLOAD;
-            case "float" ->  FLOAD;
+            case "long" -> LLOAD;
+            case "float" -> FLOAD;
             case "double" -> DLOAD;
             case "byte", "short", "int", "char", "boolean" -> ILOAD;
-            default ->       ALOAD;
+            default -> ALOAD;
         };
     }
 

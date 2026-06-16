@@ -77,6 +77,12 @@ public interface CompilerVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitReturnStat(CompilerParser.ReturnStatContext ctx);
 	/**
+	 * Visit a parse tree produced by {@link CompilerParser#tailExpr}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitTailExpr(CompilerParser.TailExprContext ctx);
+	/**
 	 * Visit a parse tree produced by the {@code ArrayAccess}
 	 * labeled alternative in {@link CompilerParser#expr}.
 	 * @param ctx the parse tree

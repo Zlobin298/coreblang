@@ -3,7 +3,7 @@ grammar Compiler;
 program : classDecl+ EOF ;
 
 classDecl : 'class' ID '{' methodDecl* '}' ;
-methodDecl : 'static'? typeSpec ID '(' formalArgs? ')' '{' stat* '}' ;
+methodDecl : 'static'? typeSpec ID '(' formalArgs? ')' '{' stat* tailExpr? '}' ;
 
 formalArgs : formalArg (',' formalArg)* ;
 formalArg : typeSpec ID ;
@@ -19,6 +19,7 @@ varDecl : typeSpec ID '=' expr ';' ;
 assignment : (ID | expr ('[' expr ']')+) '=' expr ';' ;
 println  : 'println' '(' expr ')' ';' ;
 returnStat : 'return' expr? ';' ;
+tailExpr : expr ;
 
 expr
     : '(' expr ')'                                          # Parens       
