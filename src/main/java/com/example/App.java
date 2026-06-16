@@ -13,8 +13,9 @@ public class App {
         String sourceCode =
                 "class Main {\n" +
                 "    static float getCalculatedValue() {\n" +
-                "        float a = 10 + 5 - 5 * 10 / 100.0f;\n" +
-                "        a + 5\n" +
+                "        float a = 10.0f / 5;\n" +
+                "        a = 70.0f;" +
+                "        a\n" +
                 "    }\n" +
                 "    \n" +
                 "    static void main(String[] args) {\n" +

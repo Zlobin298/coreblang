@@ -349,6 +349,12 @@ public class CodeGenerator extends CompilerBaseVisitor<Void> implements Opcodes 
         }
 
         visit(ctx.expr(1));
+        String rightType = nodeTypes.get(ctx.expr(1));
+
+        if (rightType.equals("int") || rightType.equals("byte") || rightType.equals("short")) {
+            if (type.equals("float")) mv.visitInsn(I2F);
+            else if (type.equals("double")) mv.visitInsn(I2D);
+        }
 
         String op = ctx.op.getText();
 
