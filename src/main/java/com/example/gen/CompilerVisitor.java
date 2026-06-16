@@ -125,6 +125,13 @@ public interface CompilerVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitParens(CompilerParser.ParensContext ctx);
 	/**
+	 * Visit a parse tree produced by the {@code FloatNumber}
+	 * labeled alternative in {@link CompilerParser#expr}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitFloatNumber(CompilerParser.FloatNumberContext ctx);
+	/**
 	 * Visit a parse tree produced by the {@code unaryMinus}
 	 * labeled alternative in {@link CompilerParser#expr}.
 	 * @param ctx the parse tree

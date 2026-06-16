@@ -60,27 +60,25 @@ public class TypeChecker extends CompilerBaseVisitor<String> {
 
         // если типы одинаковые (например, int + int), то и результат будет такого же типа
         if (left.equals(right)) {
+            nodeTypes.put(ctx, resultType);
             return left;
         }
 
-        // логика приведения типов если смешиваются byte, short и int
-        if (!left.equals(right)) {
-            if ((left.equals("byte") || left.equals("short") || left.equals("int")) &&
-                    (right.equals("byte") || right.equals("short") || right.equals("int"))
-            ) {
-                resultType = "int";
-            } else {
-                throw new RuntimeException("Ошибка типов: Нельзя складывать/вычитать " + left + " и " + right);
-            }
-        }
-
         // правило неявного приведения типов (автоматическое расширение до double/float)
-        if ("double".equals(left) || "double".equals(right)) {
+        if (left.equals("double") || right.equals("double")) {
             resultType = "double"; // любое число + double дает double
-        } else if ("float".equals(left) || "float".equals(right)) {
+        } else if (left.equals("float") || right.equals("float")) {
             resultType = "float";  // любое число + float (если нет double) дает float
-        } else if ("long".equals(left) || "long".equals(right)) {
+        } else if (left.equals("long") || right.equals("long")) {
             resultType = "long";   // расширение до длинного целого
+        }
+        // логика приведения типов если смешиваются byte, short и int
+        else if ((left.equals("byte") || left.equals("short") || left.equals("int")) &&
+                (right.equals("byte") || right.equals("short") || right.equals("int"))
+        ) {
+            resultType = "int";
+        } else {
+            throw new RuntimeException("Ошибка типов: Нельзя складывать/вычитать " + left + " и " + right);
         }
 
         nodeTypes.put(ctx, resultType);
@@ -214,25 +212,38 @@ public class TypeChecker extends CompilerBaseVisitor<String> {
                 return "long";
             }
 
-        } catch (NumberFormatException e) {
-            try {
-                double doubleValue = Double.parseDouble(numberText);
-
-                if (doubleValue >= -Float.MAX_VALUE && doubleValue <= Float.MAX_VALUE) {
-                    nodeTypes.put(ctx, "float");
-                    return "float";
-                } else if (doubleValue >= -Double.MAX_VALUE && doubleValue <= Double.MAX_VALUE) {
-                    nodeTypes.put(ctx, "double");
-                    return "double";
-                }
-            } catch (NumberFormatException ex) {
-                throw new RuntimeException("Семантическая ошибка: Число '" + numberText + "' слишком велико для всех известных числовых типов!");
-            }
-        }
+        } catch (NumberFormatException e) { }
 
         throw new RuntimeException("Семантическая ошибка: Не удалось определить тип для числа '" + numberText + "'");
     }
 
+    @Override
+    public String visitFloatNumber(CompilerParser.FloatNumberContext ctx) {
+        String rawText = ctx.FLOAT_LITERAL().getText();
+
+        String numberText = rawText.replaceAll("[fFdD]$", "");
+
+        String type = "double";
+        if (rawText.toLowerCase().endsWith("f")) type = "float";
+
+        try {
+            double doubleValue = Double.parseDouble(numberText);
+
+            if (type.equals("float")) {
+                if (doubleValue < -Float.MAX_VALUE || doubleValue > Float.MAX_VALUE)
+                    throw new RuntimeException("Семантическая ошибка: Дробное число '" + rawText + "' выходит за границы диапазона float!");
+            } else {
+                if (doubleValue < -Double.MAX_VALUE || doubleValue > Double.MAX_VALUE)
+                    throw new RuntimeException("Семантическая ошибка: Дробное число '" + rawText + "' выходит за границы диапазона double!");
+            }
+
+            nodeTypes.put(ctx, type);
+            return type;
+
+        } catch (NumberFormatException ex) {
+            throw new RuntimeException("Семантическая ошибка: Неверный формат дробного числа '" + rawText + "'");
+        }
+    }
 
     @Override
     public String visitVariable(CompilerParser.VariableContext ctx) {

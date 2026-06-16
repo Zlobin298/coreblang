@@ -10,9 +10,10 @@ import java.io.FileOutputStream;
 
 public class App {
     public static void main(String[] args) {
-        String sourceCode = "class GeneratedProgram {\n" +
-                "    static int getCalculatedValue() {\n" +
-                "        int a = 10;\n" +
+        String sourceCode =
+                "class GeneratedProgram {\n" +
+                "    static float getCalculatedValue() {\n" +
+                "        float a = 10 + 5 - 5 * 10 / 100.0f;\n" +
                 "        a + 5\n" +
                 "    }\n" +
                 "    \n" +

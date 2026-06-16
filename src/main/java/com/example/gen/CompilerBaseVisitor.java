@@ -144,6 +144,13 @@ public class CompilerBaseVisitor<T> extends AbstractParseTreeVisitor<T> implemen
 	 * <p>The default implementation returns the result of calling
 	 * {@link #visitChildren} on {@code ctx}.</p>
 	 */
+	@Override public T visitFloatNumber(CompilerParser.FloatNumberContext ctx) { return visitChildren(ctx); }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation returns the result of calling
+	 * {@link #visitChildren} on {@code ctx}.</p>
+	 */
 	@Override public T visitUnaryMinus(CompilerParser.UnaryMinusContext ctx) { return visitChildren(ctx); }
 	/**
 	 * {@inheritDoc}

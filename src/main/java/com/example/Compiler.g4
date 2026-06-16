@@ -16,7 +16,7 @@ stat: varDecl
     ;
 
 varDecl : typeSpec ID '=' expr ';' ;
-assignment : (ID | expr ('[' expr ']')+) '=' expr ';' ;
+assignment : (ID | expr ('[' expr ']')+) '=' expr* ';' ;
 println  : 'println' '(' expr ')' ';' ;
 returnStat : 'return' expr? ';' ;
 tailExpr : expr ;
@@ -32,7 +32,8 @@ expr
 
     | expr op=(MUL|DIV) expr                                # MulDiv       
     | expr op=(PLUS|MINUS) expr                             # AddSub       
-    | INT_LITERAL                                           # Number       
+    | INT_LITERAL                                           # Number      
+    | FLOAT_LITERAL                                         # FloatNumber 
     | ID                                                    # Variable
     ;
 

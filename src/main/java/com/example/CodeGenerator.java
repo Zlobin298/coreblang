@@ -225,17 +225,29 @@ public class CodeGenerator extends CompilerBaseVisitor<Void> implements Opcodes 
             if (value == 0) mv.visitInsn(LCONST_0); // быстрая загрузка нуля для long
             else if (value == 1) mv.visitInsn(LCONST_1); // быстрая загрузка единицы для long
             else mv.visitLdcInsn(value); // загрузка 8-байтового long константы из Constant Pool
-        } else if (type.equals("float")) {
-            float value = Float.parseFloat(numberText);
-            if (value == 0.0f) mv.visitInsn(FCONST_0);
-            else if (value == 2.0f) mv.visitInsn(FCONST_2);
+        }
+
+        return null;
+    }
+
+    @Override
+    public Void visitFloatNumber(CompilerParser.FloatNumberContext ctx) {
+        String numberText = ctx.FLOAT_LITERAL().getText();
+        String cleanNumber = numberText.replaceAll("[fFdD]$", "");
+        String type = nodeTypes.get(ctx);
+        if (type == null) type = "float";
+
+        if (type.equals("float")) {
+            float value = Float.parseFloat(cleanNumber);
+            if (value == 0.0f)      mv.visitInsn(FCONST_0);
             else if (value == 1.0f) mv.visitInsn(FCONST_1);
-            else mv.visitLdcInsn(value);
+            else if (value == 2.0f) mv.visitInsn(FCONST_2);
+            else                    mv.visitLdcInsn(value);
         } else if (type.equals("double")) {
-            double value = Double.parseDouble(numberText);
-            if (value == 0.0) mv.visitInsn(DCONST_0);
+            double value = Double.parseDouble(cleanNumber);
+            if (value == 0.0)      mv.visitInsn(DCONST_0);
             else if (value == 1.0) mv.visitInsn(DCONST_1);
-            else mv.visitLdcInsn(value);
+            else                   mv.visitLdcInsn(value);
         }
 
         return null;
