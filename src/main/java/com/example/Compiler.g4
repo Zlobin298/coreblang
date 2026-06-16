@@ -1,27 +1,43 @@
 grammar Compiler;
 
-program : stat+ EOF ;
+program : classDecl+ EOF ;
+
+classDecl : 'class' ID '{' methodDecl* '}' ;
+methodDecl : 'static'? typeSpec ID '(' formalArgs? ')' '{' stat* '}' ;
+
+formalArgs : formalArg (',' formalArg)* ;
+formalArg : typeSpec ID ;
+typeSpec : (TYPE | 'void' | ID) ('[' ']')* ;
 
 stat: varDecl
     | assignment
     | println
+    | returnStat 
     ;
 
-varDecl : TYPE ID '=' expr ';' ;
-assignment : ID '=' expr ';' ;
+varDecl : typeSpec ID '=' expr ';' ;
+assignment : (ID | expr ('[' expr ']')+) '=' expr ';' ;
 println  : 'println' '(' expr ')' ';' ;
+returnStat : 'return' expr? ';' ;
 
 expr
-    : '(' expr ')'             # Parens       // Скобки всегда имеют наивысший приоритет
-    | MINUS expr               # unaryMinus   // Унарный минус СТРОГО выше бинарных операций
+    : '(' expr ')'                                          # Parens       
+    | MINUS expr                                            # unaryMinus   
+    
+    | ID '(' exprArgs? ')'                                  # MethodCall   
 
-    | expr op=('*'|'/') expr   # MulDiv       // Умножение/деление ниже унарных, но выше сложения
-    | expr op=('+'|'-') expr   # AddSub       // Сложение/вычитание имеют самый низкий приоритет
-    | INT_LITERAL              # Number       // Базовые литералы
-    | ID                       # Variable
+    | 'new' (TYPE | ID) ('[' expr ']')+ ('[' ']')*          # ArrayCreation
+    | expr ('[' expr ']')+                                  # ArrayAccess
+
+    | expr op=(MUL|DIV) expr                                # MulDiv       
+    | expr op=(PLUS|MINUS) expr                             # AddSub       
+    | INT_LITERAL                                           # Number       
+    | ID                                                    # Variable
     ;
 
-TYPE : 'byte' 
+exprArgs : expr (',' expr)* ;
+
+TYPE: 'byte' 
      | 'short' 
      | 'int' 
      | 'long' 
@@ -41,5 +57,5 @@ MINUS : '-' ;
 MUL   : '*' ;
 DIV   : '/' ;
 
-ID    : [a-zA-Z]+ ;
+ID    : [a-zA-Z_][a-zA-Z0-9_]* ;
 WS    : [ \t\r\n]+ -> skip ;

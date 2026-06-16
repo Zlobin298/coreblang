@@ -9,11 +9,24 @@ import java.io.FileOutputStream;
 
 public class App {
     public static void main(String[] args) {
-        String sourceCode = "int x = 15;\n"      +
-                            "int b = 10 * x;\n"  +
-                            "int c = 22 / 2;\n"  +
-                            "println(b);\n"      +
-                            "println(c);\n";
+        String sourceCode = "class GeneratedProgram {\n"                   +
+                            "    static int getCalculatedValue() {\n"      +
+                            "        int a = 10;\n"                        +
+                            "        return a + 5;\n"                      +
+                            "    }\n"                                      +
+                            "    \n"                                       +
+                            "    static void main(String[] args) {\n"      +
+                            "        int result = getCalculatedValue();\n" + 
+                            "        println(result);\n"                   +
+                            "    }\n"                                      +
+                            "}\n";
+
+//        sourceCode = "class Main  {\n" +
+//        "static void main(String[] args) {\n"      +
+//        "        int result = 1 + 1;\n" +
+//        "        println(result);\n"                   +
+//        "    }\n"            +
+//        "}";
 
         System.out.println("=== 1. Исходный код ===");
         System.out.println(sourceCode);
@@ -42,7 +55,7 @@ public class App {
                 byte[] binaryClassBytes = bytecodeGen.getBytecode();
                 
                 // запись готового .class файла на жесткий диск
-                File outputFile = new File("GeneratedProgram.class");
+                File outputFile = new File("Main.class");
                 try (FileOutputStream fos = new FileOutputStream(outputFile)) {
                     fos.write(binaryClassBytes);
                     System.out.println("=== 4. Компиляция завершена! Создан файл: " + outputFile.getAbsolutePath() + " ===");

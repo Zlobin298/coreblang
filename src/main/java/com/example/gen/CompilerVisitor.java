@@ -17,6 +17,36 @@ public interface CompilerVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitProgram(CompilerParser.ProgramContext ctx);
 	/**
+	 * Visit a parse tree produced by {@link CompilerParser#classDecl}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitClassDecl(CompilerParser.ClassDeclContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link CompilerParser#methodDecl}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitMethodDecl(CompilerParser.MethodDeclContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link CompilerParser#formalArgs}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitFormalArgs(CompilerParser.FormalArgsContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link CompilerParser#formalArg}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitFormalArg(CompilerParser.FormalArgContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link CompilerParser#typeSpec}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitTypeSpec(CompilerParser.TypeSpecContext ctx);
+	/**
 	 * Visit a parse tree produced by {@link CompilerParser#stat}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
@@ -40,6 +70,19 @@ public interface CompilerVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitPrintln(CompilerParser.PrintlnContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link CompilerParser#returnStat}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitReturnStat(CompilerParser.ReturnStatContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code ArrayAccess}
+	 * labeled alternative in {@link CompilerParser#expr}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitArrayAccess(CompilerParser.ArrayAccessContext ctx);
 	/**
 	 * Visit a parse tree produced by the {@code Variable}
 	 * labeled alternative in {@link CompilerParser#expr}.
@@ -82,4 +125,24 @@ public interface CompilerVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitUnaryMinus(CompilerParser.UnaryMinusContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code ArrayCreation}
+	 * labeled alternative in {@link CompilerParser#expr}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitArrayCreation(CompilerParser.ArrayCreationContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code MethodCall}
+	 * labeled alternative in {@link CompilerParser#expr}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitMethodCall(CompilerParser.MethodCallContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link CompilerParser#exprArgs}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitExprArgs(CompilerParser.ExprArgsContext ctx);
 }

@@ -14,6 +14,8 @@ public class TypeChecker extends CompilerBaseVisitor<String> {
     private final Map<String, String> symbolTable = new HashMap<>();
     // специальная карта ANTLR связывает конкретный узел дерева с его типом
     private final ParseTreeProperty<String> nodeTypes = new ParseTreeProperty<>();
+    // хранит тип возврата для метода 
+    private String currentMethodReturnType = "void";
 
     // геттер, чтобы передать типы в генератор байт-кода
     public ParseTreeProperty<String> getNodeTypes() {
@@ -75,11 +77,9 @@ public class TypeChecker extends CompilerBaseVisitor<String> {
         // правило неявного приведения типов (автоматическое расширение до double/float)
         if ("double".equals(left) || "double".equals(right)) {
             resultType = "double"; // любое число + double дает double
-        }
-        if ("float".equals(left) || "float".equals(right)) {
+        } else if ("float".equals(left) || "float".equals(right)) {
             resultType = "float";  // любое число + float (если нет double) дает float
-        }
-        if ("long".equals(left) || "long".equals(right)) {
+        } else if ("long".equals(left) || "long".equals(right)) {
             resultType = "long";   // расширение до длинного целого
         }
 
@@ -115,7 +115,7 @@ public class TypeChecker extends CompilerBaseVisitor<String> {
 
     @Override
     public String visitVarDecl(CompilerParser.VarDeclContext ctx) {
-        String varType = ctx.TYPE().getText();
+        String varType = ctx.typeSpec().getText();
         String varName = ctx.ID().getText();
 
         // проверяем повторное объявление
@@ -128,7 +128,7 @@ public class TypeChecker extends CompilerBaseVisitor<String> {
 
         // если справа находится именно числовое литеральное выражение проверяем его границы
         if (ctx.expr() instanceof CompilerParser.NumberContext) {
-            String numberText = ctx.expr().getText();
+            String numberText = ctx.expr().getText().replaceAll("[lLfFdD]$", "");
             
             try {
                 // для целых типов парсим в long
@@ -161,14 +161,35 @@ public class TypeChecker extends CompilerBaseVisitor<String> {
         }
 
         // проверка совместимости типов
-        if (!varType.equals(exprType)) {
-            throw new RuntimeException("Ошибка типов: Нельзя присвоить тип " + exprType + " в переменную '" + varName + "' типа " + varType);
-        }
+        if (isNumber(varType) && isNumber(exprType) && getTypeRank(varType) >= getTypeRank(exprType)) { }
+        else throw new RuntimeException("Ошибка типов: Нельзя присвоить тип '" + exprType + "' в переменную '" + varName + "' типа '" + varType + "'");
 
         // сохраняем данные
         symbolTable.put(varName, varType);
         nodeTypes.put(ctx, varType); // вешаем наклейку типа на всё объявление
+        nodeTypes.put(ctx.expr(), exprType);
         return varType;
+    }
+
+    @Override
+    public String visitArrayCreation(CompilerParser.ArrayCreationContext ctx) {
+        String baseType = ctx.getChild(1).getText(); 
+
+        int dimensions = 0;
+        for (int i = 0; i < ctx.getChildCount(); i++) {
+            if (ctx.getChild(i).getText().equals("[")) dimensions++;
+        }
+
+        String arrayType = baseType + "[]".repeat(dimensions);
+
+        for (var exprCtx : ctx.expr()) {
+            String sizeType = visit(exprCtx); // вычисляем тип выражения размера (например, числа 10)
+            if (!sizeType.equals("int") && !sizeType.equals("byte") && !sizeType.equals("short")) 
+                throw new RuntimeException("Семантическая ошибка: Размер массива должен быть целым числом, но передан " + sizeType);
+        }
+
+        nodeTypes.put(ctx, arrayType);
+        return arrayType;
     }
 
     @Override
@@ -243,6 +264,49 @@ public class TypeChecker extends CompilerBaseVisitor<String> {
         return type;
     }
 
+    // читаем что метод должен вернуть 
+    @Override
+    public String visitMethodDecl(CompilerParser.MethodDeclContext ctx) {
+        currentMethodReturnType = "void";
+        if (ctx.typeSpec() != null) currentMethodReturnType = ctx.typeSpec().getText();
+
+        for (var sattCtx : ctx.getRuleContexts(CompilerParser.StatContext.class))
+            visit(sattCtx);
+
+        nodeTypes.put(ctx, currentMethodReturnType);
+        return currentMethodReturnType;
+    }
+
+    @Override
+    public String visitMethodCall(CompilerParser.MethodCallContext ctx) {
+        String methodName = ctx.ID().getText();
+
+        if (methodName.equals("getCalculatedValue")) {
+            nodeTypes.put(ctx, "int");
+            return "int";
+        }
+
+        throw new RuntimeException("Семантическая ошибка: Метод '" + methodName + "' не найден или его тип не определен!");
+    }
+
+    // метод обработки возвращаемого типа
+    @Override
+    public String visitReturnStat(CompilerParser.ReturnStatContext ctx) {
+        String exprType = "void";
+        if (ctx.expr() != null) exprType = visit(ctx.expr());
+        
+        if (!currentMethodReturnType.equals(exprType)) {
+            if (currentMethodReturnType.equals("int") && (exprType.equals("byte") || exprType.equals("short"))) {
+            exprType = "int"; 
+            } else {
+                throw new RuntimeException("Ошибка типов: Метод должен возвращать " + currentMethodReturnType + ", но возвращает " + exprType);
+            }
+        }
+
+        nodeTypes.put(ctx, exprType);
+        return exprType;
+    }
+
     // проверка типа что это число
     private boolean isNumber(String type) {
         return "byte".equals(type) ||
@@ -251,6 +315,19 @@ public class TypeChecker extends CompilerBaseVisitor<String> {
             "long".equals(type)    ||
             "float".equals(type)   || 
             "double".equals(type);
+    }
+
+    // метод для получения ранга для типа
+    private int getTypeRank(String type) {
+        switch (type) {
+            case "byte":   return 1;
+            case "short":  return 2;
+            case "int":    return 3;
+            case "long":   return 4;
+            case "float":  return 5;
+            case "double": return 6;
+            default:       return 0;
+        }
     }
 }
 

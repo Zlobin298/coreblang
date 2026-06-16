@@ -10,19 +10,16 @@ import org.objectweb.asm.Opcodes;
 
 import java.util.HashMap;
 import java.util.Map;
-
+// TODO настроить метод visitAssignment для инициализации переменных
 // наследуемся от Visitor возвращаем Void так как мы пишем напрямую в бинарный поток ASM
 public class CodeGenerator extends CompilerBaseVisitor<Void> implements Opcodes {
-
-    private final ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_FRAMES);
-    private MethodVisitor mv;
-    
-    // локальные переменные в байт коде JVM адресуются по числовым индексам (0, 1, 2...)
-    // индекс 0 в static методе это первый аргумент поэтому наши переменные начнем с 1
-    private final Map<String, Integer> variableIndexes = new HashMap<>();
-    private int nextVariableIndex = 1;
-
     private final ParseTreeProperty<String> nodeTypes;
+
+    private ClassWriter cw;
+    private MethodVisitor mv;
+    private Map<String, Integer> variableIndexes;
+
+    private int nextVariableIndex;
 
     // Конструктор принимает готовые типы из TypeChecker
     public CodeGenerator(ParseTreeProperty<String> nodeTypes) {
@@ -36,10 +33,119 @@ public class CodeGenerator extends CompilerBaseVisitor<Void> implements Opcodes 
 
     @Override
     public Void visitProgram(CompilerParser.ProgramContext ctx) {
-        // 1. создаем структуру класса (версия JDK11, публичный, имя: GeneratedProgram)
-        cw.visit(V11, ACC_PUBLIC, "GeneratedProgram", null, "java/lang/Object", null);
+        for (var classCtx : ctx.classDecl())
+            visit(classCtx);
 
-        // 2. создаем стандартный конструктор по умолчанию
+        return null;
+    }
+
+    @Override
+    public Void visitVarDecl(CompilerParser.VarDeclContext ctx) {
+        String varName = ctx.ID().getText();
+        String varType = ctx.typeSpec().getText();
+
+        visit(ctx.expr());
+
+        if (!variableIndexes.containsKey(varName)) {
+            variableIndexes.put(varName, nextVariableIndex);
+            nextVariableIndex += getAsmTypeSize(varType);
+        }
+
+        int index = variableIndexes.get(varName);
+        
+        mv.visitVarInsn(getStoreOpcode(varType), index);
+        return null;
+    }
+
+    @Override
+    public Void visitMethodCall(CompilerParser.MethodCallContext ctx) {
+        String methodName = ctx.ID().getText();
+
+        if (ctx.exprArgs() != null) {
+            for (var exprCtx : ctx.exprArgs().expr())
+                visit(exprCtx);
+        }
+
+        if (methodName.equals("getCalculatedValue")) {
+            mv.visitMethodInsn(INVOKESTATIC, "GeneratedProgram", "getCalculatedValue", "()I", false);
+        } else {
+            throw new RuntimeException("Ошибка генерации байт-кода: Неизвестный метод " + methodName);
+        }
+
+        return null;
+    }
+
+    @Override
+    public Void visitReturnStat(CompilerParser.ReturnStatContext ctx) {
+        if (ctx.expr() != null) visit(ctx.expr());
+
+        String type = nodeTypes.get(ctx);
+        if (type == null) type = "void";
+
+        switch (type) {
+            case "long":    mv.visitInsn(LRETURN); break;
+            case "float":   mv.visitInsn(FRETURN); break;
+            case "double":  mv.visitInsn(DRETURN); break;
+            case "byte":
+            case "short":
+            case "int":
+            case "char":
+            case "boolean": mv.visitInsn(IRETURN); break;
+            case "void":
+            default:        mv.visitInsn(RETURN); break;
+        }
+
+        return null;
+    }
+
+    @Override
+    public Void visitMethodDecl(CompilerParser.MethodDeclContext ctx) {
+        String methodName = ctx.ID().getText();
+        String returnType = ctx.typeSpec() != null ? ctx.typeSpec().getText() : "void";
+
+        boolean isStatic = ctx.getChild(0).getText().equals("static");
+        int accessFlags = ACC_PUBLIC + (isStatic ? ACC_STATIC : 0);
+
+        this.variableIndexes = new HashMap<>();
+        this.nextVariableIndex = isStatic ? 0 : 1;
+
+        // реализовываем сдвиг аргументов
+        if (ctx.formalArgs() != null) {
+            for (var argsCtx : ctx.formalArgs().formalArg()) {
+                String argName = argsCtx.ID().getText();
+                // регистрация аргумента (например, args получит индекс 0)
+                variableIndexes.put(argName, nextVariableIndex);
+
+                String argType = argsCtx.typeSpec().getText();
+                // если аргумент - массив (String[]) или объект, он занимает 1 слот JVM
+                if (argType.contains("[")) nextVariableIndex += 1;
+                else if (argType.equals("long") || argType.equals("double")) nextVariableIndex += 2;
+                else nextVariableIndex += 1;
+            }
+        }
+
+        String descriptor = buildMethodDescriptor(ctx, returnType);
+        mv = cw.visitMethod(accessFlags, methodName, descriptor, null, null);
+        mv.visitCode();
+
+        for (var statCtx : ctx.stat())
+            visit(statCtx);
+
+        if (returnType.equals("void")) mv.visitInsn(RETURN);
+        
+        mv.visitMaxs(0, 0); // автоматически строит стековую таблицу
+        mv.visitEnd();
+        return null;
+    }
+
+    @Override
+    public Void visitClassDecl(CompilerParser.ClassDeclContext ctx) {
+        String className = ctx.ID().getText();
+
+        this.cw = new ClassWriter(ClassWriter.COMPUTE_FRAMES);
+        
+        this.cw.visit(V21, ACC_PUBLIC, className, null, "java/lang/Object", null);
+
         MethodVisitor init = cw.visitMethod(ACC_PUBLIC, "<init>", "()V", null, null);
         init.visitCode();
         init.visitVarInsn(ALOAD, 0);
@@ -48,40 +154,14 @@ public class CodeGenerator extends CompilerBaseVisitor<Void> implements Opcodes 
         init.visitMaxs(1, 1);
         init.visitEnd();
 
-        // 3. создаем точку входа: public static void main(String[] args)
-        mv = cw.visitMethod(ACC_PUBLIC + ACC_STATIC, "main", "([Ljava/lang/String;)V", null, null);
-        mv.visitCode();
-
-        // обходим все команды нашей программы
-        for (CompilerParser.StatContext statCtx : ctx.stat()) {
-            visit(statCtx);
+        for (var methodCtx : ctx.methodDecl()) {
+            visit(methodCtx);
         }
 
-        // завершаем метод main
-        mv.visitInsn(RETURN);
-        mv.visitMaxs(0, 0);
-        mv.visitEnd();
-
-        // завершаем генерацию класса
-        cw.visitEnd();
+        this.cw.visitEnd();
         return null;
     }
 
-    @Override
-    public Void visitVarDecl(CompilerParser.VarDeclContext ctx) {
-        String varName = ctx.ID().getText();
-
-        // вычисляем выражение (оно положит результат на вершину стека JVM)
-        visit(ctx.expr());
-
-        // выделяем индекс для новой переменной
-        int index = nextVariableIndex++;
-        variableIndexes.put(varName, index);
-
-        // ISTORE сохраняет int/byte из вершины стека в локальную переменную под указанным индексом
-        mv.visitVarInsn(ISTORE, index);
-        return null;
-    }
 
     @Override
     public Void visitPrintln(CompilerParser.PrintlnContext ctx) {
@@ -110,36 +190,27 @@ public class CodeGenerator extends CompilerBaseVisitor<Void> implements Opcodes 
             int value = Integer.parseInt(numberText);
             
             // быстрые низкоуровневые оптимизации JVM для экономии байт-кода
-            if (value >= -1 && value <= 5) {
-                mv.visitInsn(ICONST_0 + value); // инструкции ICONST_M1, ICONST_0 ... ICONST_5 (1 байт)
-            } else if (value >= -128 && value <= 127) {
-                mv.visitIntInsn(BIPUSH, value); // положить однобайтовое число (2 байта из-за инструкции .class)
-            } else if (value >= -32768 && value <= 32767) {
-                mv.visitIntInsn(SIPUSH, value); // положить двухбайтовое число (3 байта)
-            } else {
-                mv.visitLdcInsn(value);         // Загрузка 4-байтового int константы из Constant Pool
-            }
+            if (value >= -1 && value <= 5)              mv.visitInsn(ICONST_0 + value); // инструкции ICONST_M1, ICONST_0 ... ICONST_5 (1 байт)
+            else if (value >= -128 && value <= 127)     mv.visitIntInsn(BIPUSH, value); // положить однобайтовое число (2 байта из-за инструкции .class)
+            else if (value >= -32768 && value <= 32767) mv.visitIntInsn(SIPUSH, value); // положить двухбайтовое число (3 байта)
+            else                                        mv.visitLdcInsn(value);         // Загрузка 4-байтового int константы из Constant Pool
         } else if (type.equals("long")) {
             long value = Long.parseLong(numberText);
             
-            if (value == 0) {
-                mv.visitInsn(LCONST_0); // быстрая загрузка нуля для long
-            } else if (value == 1) {
-                mv.visitInsn(LCONST_1); // быстрая загрузка единицы для long
-            } else {
-                mv.visitLdcInsn(value); // загрузка 8-байтового long константы из Constant Pool
-            }
+            if (value == 0)      mv.visitInsn(LCONST_0); // быстрая загрузка нуля для long
+            else if (value == 1) mv.visitInsn(LCONST_1); // быстрая загрузка единицы для long
+            else                 mv.visitLdcInsn(value); // загрузка 8-байтового long константы из Constant Pool
         } else if (type.equals("float")) {
             float value = Float.parseFloat(numberText);
-            if (value == 0.0f) mv.visitInsn(FCONST_0);
-            else if (value == 1.0f) mv.visitInsn(FCONST_1);
+            if (value == 0.0f)      mv.visitInsn(FCONST_0);
             else if (value == 2.0f) mv.visitInsn(FCONST_2);
-            else mv.visitLdcInsn(value);
+            else if (value == 1.0f) mv.visitInsn(FCONST_1);
+            else                    mv.visitLdcInsn(value);
         } else if (type.equals("double")) {
             double value = Double.parseDouble(numberText);
-            if (value == 0.0) mv.visitInsn(DCONST_0);
+            if (value == 0.0)      mv.visitInsn(DCONST_0);
             else if (value == 1.0) mv.visitInsn(DCONST_1);
-            else mv.visitLdcInsn(value);
+            else                   mv.visitLdcInsn(value);
         }
 
         return null;
@@ -214,25 +285,15 @@ public class CodeGenerator extends CompilerBaseVisitor<Void> implements Opcodes 
     public Void visitVariable(CompilerParser.VariableContext ctx) {
         String varName = ctx.ID().getText();
         
-        // получаем индекс локальной переменной в JVM
-        int index = variableIndexes.get(varName);
-
-        // мгновенно узнаем точный тип переменной который определил TypeChecker
-        String type = nodeTypes.get(ctx);
-
-        // выбираем правильную JVM-инструкцию загрузки (LOAD) в зависимости от типа данных
-        switch (type) {
-            case "long":   mv.visitVarInsn(LLOAD, index); break;
-            case "float":  mv.visitVarInsn(FLOAD, index); break;
-            case "double": mv.visitVarInsn(DLOAD, index); break;
-            case "byte":
-            case "short":
-            case "int":
-            case "char":
-            case "boolean":
-            default:       mv.visitVarInsn(ILOAD, index); break;
+        if (!variableIndexes.containsKey(varName)) {
+            throw new RuntimeException("Ошибка генерации кода: Попытка прочитать неинициализированную переменную '" + varName + "'");
         }
+        
+        int index = variableIndexes.get(varName);
+        String type = nodeTypes.get(ctx);
+        if (type == null) type = "int";
 
+        mv.visitVarInsn(getLoadOpcode(type), index);
         return null;
     }
 
@@ -241,14 +302,130 @@ public class CodeGenerator extends CompilerBaseVisitor<Void> implements Opcodes 
         return visit(ctx.expr());
     }
 
-    private String getJvmDescriptor(String myType) {
-        switch (myType) {
-            case "long":    return "J";
-            case "float":   return "F";
-            case "double":  return "D";
-            case "boolean": return "Z";
-            case "char":    return "C";
-            default:        return "I"; // byte и short обрабатываются как int
+    @Override
+    public Void visitArrayCreation(CompilerParser.ArrayCreationContext ctx) {
+        for (var exprCtx : ctx.expr()) visit(exprCtx);
+        String baseType = ctx.getChild(1).getText();
+        
+        int dimensions = 0;
+        for (int i = 0; i < ctx.getChildCount(); i++) {
+            if (ctx.getChild(i).getText().equals("[")) dimensions++;
         }
+        
+        if (dimensions > 1) {
+            String arrayDescriptor = "[".repeat(dimensions) + getJvmTypeLetter(baseType);
+            mv.visitMultiANewArrayInsn(arrayDescriptor, ctx.expr().size());
+        } else {
+            if (isPrimitive(baseType)) {
+                mv.visitIntInsn(NEWARRAY, getAsmPrimitiveTypeFlag(baseType));
+            } else {
+                String internalName = baseType.equals("String") ? "java/lang/String" : baseType;
+                mv.visitTypeInsn(ANEWARRAY, internalName);
+            }
+        }
+
+        return null;
+    }
+
+    private String buildMethodDescriptor(CompilerParser.MethodDeclContext ctx, String returnType) {
+        if (ctx.ID().getText().equals("main") && ctx.getChild(0).getText().equals("static")) {
+            return "([Ljava/lang/String;)V";
+        }
+
+        var descriptor = new StringBuilder("(");
+        if (ctx.formalArgs() != null) {
+            for (var argsCtx : ctx.formalArgs().formalArg())
+                descriptor.append(getJvmMethodDescriptor(argsCtx.typeSpec().getText()));
+        }
+
+        descriptor.append(")");
+        descriptor.append(getJvmMethodDescriptor(returnType));
+
+        return descriptor.toString();
+    }
+
+    private String getJvmDescriptor(String myType) {
+        return switch (myType) {
+            case "long" ->    "J";
+            case "float" ->   "F";
+            case "double" ->  "D";
+            case "boolean" -> "Z";
+            case "char" ->    "C";
+            default ->        "I"; // byte и short обрабатываются как int
+        };
+    }
+
+    private String getJvmMethodDescriptor(String myType) {
+        return switch (myType) {
+            case "void" ->    "V";
+            case "boolean" -> "Z";
+            case "char" ->    "C";
+            case "byte" ->    "B";
+            case "short" ->   "S";
+            case "int" ->     "I";
+            case "long" ->    "J";
+            case "float" ->   "F";
+            case "double" ->  "D";
+            default ->        "Ljava/lang/Object;";
+        };
+    }
+
+    // вспомогательный метод для получения буквы типа в дескриптор многомерного массива
+    private String getJvmTypeLetter(String type) {
+        return switch (type) {
+            case "boolean" -> "Z";
+            case "char" ->    "C";
+            case "byte" ->    "B";
+            case "short" ->   "S";
+            case "int" ->     "I";
+            case "long" ->    "J";
+            case "float" ->   "F";
+            case "double" ->  "D";
+            case "String" ->  "Ljava/lang/String;";
+            default ->        "L" + type + ";";
+        };
+    }
+
+    // вспомогательный метод для определения флага примитивного типа для команды NEWARRAY
+    private int getAsmPrimitiveTypeFlag(String type) {
+        return switch (type) {
+            case "boolean" -> T_BOOLEAN;
+            case "char" -> T_CHAR;
+            case "float" -> T_FLOAT;
+            case "double" -> T_DOUBLE;
+            case "byte" -> T_BYTE;
+            case "short" -> T_SHORT;
+            case "long" -> T_LONG;
+            default -> T_INT;
+        };
+    }
+
+    private int getStoreOpcode(String type) {
+        return switch (type) {
+            case "long" ->   LSTORE;
+            case "float" ->  FSTORE;
+            case "double" -> DSTORE;
+            case "byte", "short", "int", "char", "boolean" -> ISTORE;
+            default ->       ASTORE;
+        };
+    }
+
+    private int getLoadOpcode(String type) {
+        return switch (type) {
+            case "long" ->   LLOAD;
+            case "float" ->  FLOAD;
+            case "double" -> DLOAD;
+            case "byte", "short", "int", "char", "boolean" -> ILOAD;
+            default ->       ALOAD;
+        };
+    }
+
+    private int getAsmTypeSize(String type) {
+        if ("long".equals(type) || "double".equals(type)) return 2;
+        return 1;
+    }
+
+    private boolean isPrimitive(String type) {
+        return !type.equals("String") && getAsmPrimitiveTypeFlag(type) != T_INT || type.equals("int");
     }
 }
