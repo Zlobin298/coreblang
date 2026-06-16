@@ -32,21 +32,14 @@ public class TypeChecker extends CompilerBaseVisitor<String> {
     public String visitUnaryMinus(CompilerParser.UnaryMinusContext ctx) {
         String innerType = visit(ctx.expr());
 
-        // проверяем, что тип числовой (int или double)
         if (isNumber(innerType)) {
+            // сохраняем тип самого узла унарного минуса
+            nodeTypes.put(ctx, innerType);
+            nodeTypes.put(ctx.expr(), innerType); // дублируем на внутреннее выражение
             return innerType;
         }
 
-        // получаем координаты ошибки в файле пользователя
-        int line = ctx.start.getLine();
-        int column = ctx.start.getCharPositionInLine();
-        String wrongExpression = ctx.expr().getText(); // Получит текст "hello"
-
-        // выводим информативное сообщение
-        System.err.printf("Ошибка типов (%d:%d): Унарный минус нельзя применить к типу '%s' в выражении -%s%n",
-                line, column, innerType, wrongExpression);
-
-        return "error";
+        throw new RuntimeException("Ошибка типов: Унарный минус применим только к числам!");
     }
 
     // обработка бинарного сложения и вычитания

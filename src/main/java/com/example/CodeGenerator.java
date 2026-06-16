@@ -44,6 +44,23 @@ public class CodeGenerator extends CompilerBaseVisitor<Void> implements Opcodes 
     }
 
     @Override
+    public Void visitUnaryMinus(CompilerParser.UnaryMinusContext ctx) {
+        visit(ctx.expr());
+
+        String type = nodeTypes.get(ctx.expr());
+        if (type == null) type = "int";
+
+        switch (type) {
+            case "long" -> mv.visitInsn(LNEG);
+            case "float" -> mv.visitInsn(FNEG);
+            case "double" -> mv.visitInsn(DNEG);
+            default -> mv.visitInsn(INEG);
+        }
+
+        return null;
+    }
+
+    @Override
     public Void visitVarDecl(CompilerParser.VarDeclContext ctx) {
         String varName = ctx.ID().getText();
         String varType = ctx.typeSpec().getText();
@@ -423,7 +440,8 @@ public class CodeGenerator extends CompilerBaseVisitor<Void> implements Opcodes 
             String varName = ctx.ID().getText();
 
             // проверяем, что переменная вообще существует в памяти компилятора
-            if (!variableIndexes.containsKey(varName)) throw new RuntimeException("Ошибка генерации байт-кода: Переменная '" + varName + "' не объявлена!");
+            if (!variableIndexes.containsKey(varName))
+                throw new RuntimeException("Ошибка генерации байт-кода: Переменная '" + varName + "' не объявлена!");
 
             int index = variableIndexes.get(varName);
 

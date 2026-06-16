@@ -1,0 +1,12 @@
+class Main {
+    static float getCalculatedValue() {
+        float a = 10.0f / 5;
+        a = 70.0f;
+        a
+    }
+
+    static void main(String[] args) {
+        float result = getCalculatedValue();
+        println(result);
+    }
+}
