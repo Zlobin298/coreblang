@@ -42,6 +42,20 @@ public class TypeChecker extends CompilerBaseVisitor<String> {
         throw new RuntimeException("Ошибка типов: Унарный минус применим только к числам!");
     }
 
+    // обработка логического нет
+    @Override
+    public String visitLogicalNot(CompilerParser.LogicalNotContext ctx) {
+        String innerType = visit(ctx.expr());
+
+        if (innerType.equals("boolean")) {
+            nodeTypes.put(ctx, innerType);
+            nodeTypes.put(ctx.expr(), innerType);
+            return innerType;
+        }
+
+        throw new RuntimeException("Ошибка типов: Оператор '!' применяется только к булевым выражениям");
+    }
+
     // обработка бинарного сложения и вычитания
     @Override
     public String visitAddSub(CompilerParser.AddSubContext ctx) {

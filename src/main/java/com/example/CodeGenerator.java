@@ -61,6 +61,16 @@ public class CodeGenerator extends CompilerBaseVisitor<Void> implements Opcodes 
     }
 
     @Override
+    public Void visitLogicalNot(CompilerParser.LogicalNotContext ctx) {
+        visit(ctx.expr());
+
+        mv.visitInsn(Opcodes.ICONST_1);
+        mv.visitInsn(Opcodes.IXOR);
+
+        return null;
+    }
+
+    @Override
     public Void visitVarDecl(CompilerParser.VarDeclContext ctx) {
         String varName = ctx.ID().getText();
         String varType = ctx.typeSpec().getText();

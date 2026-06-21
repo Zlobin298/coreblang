@@ -117,17 +117,15 @@ public interface CompilerListener extends ParseTreeListener {
 	 */
 	void exitReturnStat(CompilerParser.ReturnStatContext ctx);
 	/**
-	 * Enter a parse tree produced by the {@code ArrayAccess}
-	 * labeled alternative in {@link CompilerParser#expr}.
+	 * Enter a parse tree produced by {@link CompilerParser#tailExpr}.
 	 * @param ctx the parse tree
 	 */
-	void enterArrayAccess(CompilerParser.ArrayAccessContext ctx);
+	void enterTailExpr(CompilerParser.TailExprContext ctx);
 	/**
-	 * Exit a parse tree produced by the {@code ArrayAccess}
-	 * labeled alternative in {@link CompilerParser#expr}.
+	 * Exit a parse tree produced by {@link CompilerParser#tailExpr}.
 	 * @param ctx the parse tree
 	 */
-	void exitArrayAccess(CompilerParser.ArrayAccessContext ctx);
+	void exitTailExpr(CompilerParser.TailExprContext ctx);
 	/**
 	 * Enter a parse tree produced by the {@code Variable}
 	 * labeled alternative in {@link CompilerParser#expr}.
@@ -140,18 +138,6 @@ public interface CompilerListener extends ParseTreeListener {
 	 * @param ctx the parse tree
 	 */
 	void exitVariable(CompilerParser.VariableContext ctx);
-	/**
-	 * Enter a parse tree produced by the {@code Number}
-	 * labeled alternative in {@link CompilerParser#expr}.
-	 * @param ctx the parse tree
-	 */
-	void enterNumber(CompilerParser.NumberContext ctx);
-	/**
-	 * Exit a parse tree produced by the {@code Number}
-	 * labeled alternative in {@link CompilerParser#expr}.
-	 * @param ctx the parse tree
-	 */
-	void exitNumber(CompilerParser.NumberContext ctx);
 	/**
 	 * Enter a parse tree produced by the {@code MulDiv}
 	 * labeled alternative in {@link CompilerParser#expr}.
@@ -189,17 +175,125 @@ public interface CompilerListener extends ParseTreeListener {
 	 */
 	void exitParens(CompilerParser.ParensContext ctx);
 	/**
-	 * Enter a parse tree produced by the {@code unaryMinus}
+	 * Enter a parse tree produced by the {@code BooleanLiteral}
+	 * labeled alternative in {@link CompilerParser#expr}.
+	 * @param ctx the parse tree
+	 */
+	void enterBooleanLiteral(CompilerParser.BooleanLiteralContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code BooleanLiteral}
+	 * labeled alternative in {@link CompilerParser#expr}.
+	 * @param ctx the parse tree
+	 */
+	void exitBooleanLiteral(CompilerParser.BooleanLiteralContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code Relational}
+	 * labeled alternative in {@link CompilerParser#expr}.
+	 * @param ctx the parse tree
+	 */
+	void enterRelational(CompilerParser.RelationalContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code Relational}
+	 * labeled alternative in {@link CompilerParser#expr}.
+	 * @param ctx the parse tree
+	 */
+	void exitRelational(CompilerParser.RelationalContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code UnaryMinus}
 	 * labeled alternative in {@link CompilerParser#expr}.
 	 * @param ctx the parse tree
 	 */
 	void enterUnaryMinus(CompilerParser.UnaryMinusContext ctx);
 	/**
-	 * Exit a parse tree produced by the {@code unaryMinus}
+	 * Exit a parse tree produced by the {@code UnaryMinus}
 	 * labeled alternative in {@link CompilerParser#expr}.
 	 * @param ctx the parse tree
 	 */
 	void exitUnaryMinus(CompilerParser.UnaryMinusContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code MethodCall}
+	 * labeled alternative in {@link CompilerParser#expr}.
+	 * @param ctx the parse tree
+	 */
+	void enterMethodCall(CompilerParser.MethodCallContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code MethodCall}
+	 * labeled alternative in {@link CompilerParser#expr}.
+	 * @param ctx the parse tree
+	 */
+	void exitMethodCall(CompilerParser.MethodCallContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code LogicalOr}
+	 * labeled alternative in {@link CompilerParser#expr}.
+	 * @param ctx the parse tree
+	 */
+	void enterLogicalOr(CompilerParser.LogicalOrContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code LogicalOr}
+	 * labeled alternative in {@link CompilerParser#expr}.
+	 * @param ctx the parse tree
+	 */
+	void exitLogicalOr(CompilerParser.LogicalOrContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code LogicalNot}
+	 * labeled alternative in {@link CompilerParser#expr}.
+	 * @param ctx the parse tree
+	 */
+	void enterLogicalNot(CompilerParser.LogicalNotContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code LogicalNot}
+	 * labeled alternative in {@link CompilerParser#expr}.
+	 * @param ctx the parse tree
+	 */
+	void exitLogicalNot(CompilerParser.LogicalNotContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code ArrayAccess}
+	 * labeled alternative in {@link CompilerParser#expr}.
+	 * @param ctx the parse tree
+	 */
+	void enterArrayAccess(CompilerParser.ArrayAccessContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code ArrayAccess}
+	 * labeled alternative in {@link CompilerParser#expr}.
+	 * @param ctx the parse tree
+	 */
+	void exitArrayAccess(CompilerParser.ArrayAccessContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code Number}
+	 * labeled alternative in {@link CompilerParser#expr}.
+	 * @param ctx the parse tree
+	 */
+	void enterNumber(CompilerParser.NumberContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code Number}
+	 * labeled alternative in {@link CompilerParser#expr}.
+	 * @param ctx the parse tree
+	 */
+	void exitNumber(CompilerParser.NumberContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code FloatNumber}
+	 * labeled alternative in {@link CompilerParser#expr}.
+	 * @param ctx the parse tree
+	 */
+	void enterFloatNumber(CompilerParser.FloatNumberContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code FloatNumber}
+	 * labeled alternative in {@link CompilerParser#expr}.
+	 * @param ctx the parse tree
+	 */
+	void exitFloatNumber(CompilerParser.FloatNumberContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code LogicalAnd}
+	 * labeled alternative in {@link CompilerParser#expr}.
+	 * @param ctx the parse tree
+	 */
+	void enterLogicalAnd(CompilerParser.LogicalAndContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code LogicalAnd}
+	 * labeled alternative in {@link CompilerParser#expr}.
+	 * @param ctx the parse tree
+	 */
+	void exitLogicalAnd(CompilerParser.LogicalAndContext ctx);
 	/**
 	 * Enter a parse tree produced by the {@code ArrayCreation}
 	 * labeled alternative in {@link CompilerParser#expr}.
@@ -213,17 +307,17 @@ public interface CompilerListener extends ParseTreeListener {
 	 */
 	void exitArrayCreation(CompilerParser.ArrayCreationContext ctx);
 	/**
-	 * Enter a parse tree produced by the {@code MethodCall}
+	 * Enter a parse tree produced by the {@code Equality}
 	 * labeled alternative in {@link CompilerParser#expr}.
 	 * @param ctx the parse tree
 	 */
-	void enterMethodCall(CompilerParser.MethodCallContext ctx);
+	void enterEquality(CompilerParser.EqualityContext ctx);
 	/**
-	 * Exit a parse tree produced by the {@code MethodCall}
+	 * Exit a parse tree produced by the {@code Equality}
 	 * labeled alternative in {@link CompilerParser#expr}.
 	 * @param ctx the parse tree
 	 */
-	void exitMethodCall(CompilerParser.MethodCallContext ctx);
+	void exitEquality(CompilerParser.EqualityContext ctx);
 	/**
 	 * Enter a parse tree produced by {@link CompilerParser#exprArgs}.
 	 * @param ctx the parse tree

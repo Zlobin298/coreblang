@@ -83,26 +83,12 @@ public interface CompilerVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitTailExpr(CompilerParser.TailExprContext ctx);
 	/**
-	 * Visit a parse tree produced by the {@code ArrayAccess}
-	 * labeled alternative in {@link CompilerParser#expr}.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	T visitArrayAccess(CompilerParser.ArrayAccessContext ctx);
-	/**
 	 * Visit a parse tree produced by the {@code Variable}
 	 * labeled alternative in {@link CompilerParser#expr}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
 	T visitVariable(CompilerParser.VariableContext ctx);
-	/**
-	 * Visit a parse tree produced by the {@code Number}
-	 * labeled alternative in {@link CompilerParser#expr}.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	T visitNumber(CompilerParser.NumberContext ctx);
 	/**
 	 * Visit a parse tree produced by the {@code MulDiv}
 	 * labeled alternative in {@link CompilerParser#expr}.
@@ -125,6 +111,62 @@ public interface CompilerVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitParens(CompilerParser.ParensContext ctx);
 	/**
+	 * Visit a parse tree produced by the {@code BooleanLiteral}
+	 * labeled alternative in {@link CompilerParser#expr}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitBooleanLiteral(CompilerParser.BooleanLiteralContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code Relational}
+	 * labeled alternative in {@link CompilerParser#expr}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitRelational(CompilerParser.RelationalContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code UnaryMinus}
+	 * labeled alternative in {@link CompilerParser#expr}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitUnaryMinus(CompilerParser.UnaryMinusContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code MethodCall}
+	 * labeled alternative in {@link CompilerParser#expr}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitMethodCall(CompilerParser.MethodCallContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code LogicalOr}
+	 * labeled alternative in {@link CompilerParser#expr}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitLogicalOr(CompilerParser.LogicalOrContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code LogicalNot}
+	 * labeled alternative in {@link CompilerParser#expr}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitLogicalNot(CompilerParser.LogicalNotContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code ArrayAccess}
+	 * labeled alternative in {@link CompilerParser#expr}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitArrayAccess(CompilerParser.ArrayAccessContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code Number}
+	 * labeled alternative in {@link CompilerParser#expr}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitNumber(CompilerParser.NumberContext ctx);
+	/**
 	 * Visit a parse tree produced by the {@code FloatNumber}
 	 * labeled alternative in {@link CompilerParser#expr}.
 	 * @param ctx the parse tree
@@ -132,12 +174,12 @@ public interface CompilerVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitFloatNumber(CompilerParser.FloatNumberContext ctx);
 	/**
-	 * Visit a parse tree produced by the {@code unaryMinus}
+	 * Visit a parse tree produced by the {@code LogicalAnd}
 	 * labeled alternative in {@link CompilerParser#expr}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
-	T visitUnaryMinus(CompilerParser.UnaryMinusContext ctx);
+	T visitLogicalAnd(CompilerParser.LogicalAndContext ctx);
 	/**
 	 * Visit a parse tree produced by the {@code ArrayCreation}
 	 * labeled alternative in {@link CompilerParser#expr}.
@@ -146,12 +188,12 @@ public interface CompilerVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitArrayCreation(CompilerParser.ArrayCreationContext ctx);
 	/**
-	 * Visit a parse tree produced by the {@code MethodCall}
+	 * Visit a parse tree produced by the {@code Equality}
 	 * labeled alternative in {@link CompilerParser#expr}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
-	T visitMethodCall(CompilerParser.MethodCallContext ctx);
+	T visitEquality(CompilerParser.EqualityContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link CompilerParser#exprArgs}.
 	 * @param ctx the parse tree

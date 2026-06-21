@@ -50,7 +50,7 @@ public class App extends JFrame {
 
         JPanel bottomPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
 
-        String[] files = loadTxtFilesFromDirectory(FOLDER_PATH);
+        String[] files = loadTxtFilesFromDirectory();
         fileComboBox = new JComboBox<>(files);
         fileComboBox.addActionListener(e -> loadSelectedFile());
 
@@ -119,8 +119,8 @@ public class App extends JFrame {
                 process.waitFor();
 
                 String finalResult;
-                if (errorLog.length() > 0) finalResult = "--- Ошибка выполнения ---\n" + errorLog.toString();
-                else if (outputLog.length() == 0) finalResult = "[Программа успешно выполнилась, но ничего не вывела в консоль]";
+                if (!errorLog.isEmpty()) finalResult = "--- Ошибка выполнения ---\n" + errorLog.toString();
+                else if (outputLog.isEmpty()) finalResult = "[Программа успешно выполнилась, но ничего не вывела в консоль]";
                 else finalResult = outputLog.toString();
 
                 SwingUtilities.invokeLater(() -> showConsoleWindow(finalResult));
@@ -147,8 +147,8 @@ public class App extends JFrame {
         consoleDialog.setVisible(true);
     }
 
-    private String[] loadTxtFilesFromDirectory(String path) {
-        File folder = new File(path);
+    private String[] loadTxtFilesFromDirectory() {
+        File folder = new File(App.FOLDER_PATH);
         if (!folder.exists()) folder.mkdirs();
 
         File[] textFiles = folder.listFiles((dir, name) -> name.toLowerCase().endsWith(".txt"));
