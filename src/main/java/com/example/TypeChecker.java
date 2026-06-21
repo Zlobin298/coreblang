@@ -125,7 +125,7 @@ public class TypeChecker extends CompilerBaseVisitor<String> {
 
     @Override
     public String visitVarDecl(CompilerParser.VarDeclContext ctx) {
-        String varType = ctx.typeSpec().getText();
+        String varType = ctx.typeSpec().getText().trim();
         String varName = ctx.ID().getText();
 
         // проверяем повторное объявление
@@ -171,8 +171,10 @@ public class TypeChecker extends CompilerBaseVisitor<String> {
         }
 
         // проверка совместимости типов
-        if (isNumber(varType) && isNumber(exprType) && getTypeRank(varType) >= getTypeRank(exprType)) {
-        } else
+        boolean typesMatch = varType.equals(exprType);
+        boolean isNumericExtension = isNumber(varType) && isNumber(exprType) && getTypeRank(varType) >= getTypeRank(exprType);
+
+        if (!typesMatch && !isNumericExtension)
             throw new RuntimeException("Ошибка типов: Нельзя присвоить тип '" + exprType + "' в переменную '" + varName + "' типа '" + varType + "'");
 
         // сохраняем данные
@@ -258,41 +260,46 @@ public class TypeChecker extends CompilerBaseVisitor<String> {
     }
 
     @Override
+    public String visitBooleanLiteral(CompilerParser.BooleanLiteralContext ctx) {
+        nodeTypes.put(ctx, "boolean");
+        return "boolean";
+    }
+
+    @Override
     public String visitAssignment(CompilerParser.AssignmentContext ctx) {
         String varType;
         String exprType;
 
         // простое переприсваивание в переменную
         if (ctx.ID() != null) {
-            String varName = ctx.ID().getText();
+            String varName = ctx.ID().getText().trim();
 
             // проверяем, что переменная была объявлена ранее через varDecl
             if (!symbolTable.containsKey(varName)) throw new RuntimeException("Семантическая ошибка: Переменная '" + varName + "' не объявлена!");
 
-            varType = symbolTable.get(varName);
-            exprType = visit(ctx.expr(0));
+            varType = symbolTable.get(varName).trim();
+            exprType = visit(ctx.expr(0)).trim();
         }
 
         // запись в элемент массива
         else {
-            String arrayType = visit(ctx.expr(0));
+            String arrayType = visit(ctx.expr(0)).trim();
 
             if (arrayType == null || !arrayType.contains("[")) throw new RuntimeException("Семантическая ошибка: Попытка обратиться по индексу к переменной, которая не является массивом!");
 
             // вычисляем тип индекса
-            String indexType = visit(ctx.expr(1));
+            String indexType = visit(ctx.expr(1)).trim();
             if (!"int".equals(indexType) && !"byte".equals(indexType) && !"short".equals(indexType))
                 throw new RuntimeException("Семантическая ошибка: Индекс массива должен быть целым числом, но передан '" + indexType + "'");
 
-            varType = arrayType.replace("[]", "");
-            exprType = visit(ctx.expr(2));
+            varType = arrayType.replace("[]", "").trim();
+            exprType = visit(ctx.expr(2)).trim();
         }
 
         // проверка совместимости типов
-        if (!varType.equals(exprType)) {
-            if (isNumber(varType) && isNumber(exprType) && getTypeRank(varType) >= getTypeRank(exprType)) { }
-            else throw new RuntimeException("Ошибка типов: Нельзя присвоить значение типа '" + exprType +"' в переменную типа '" + varType + "'");
-        }
+        if (varType.equals(exprType)) { }
+        else if (isNumber(varType) && isNumber(exprType) && getTypeRank(varType) >= getTypeRank(exprType)) { }
+        else throw new RuntimeException("Ошибка типов: Нельзя присвоить значение типа '" + exprType + "' в переменную типа '" + varType + "'");
 
         nodeTypes.put(ctx, varType);
         return varType;
@@ -307,7 +314,7 @@ public class TypeChecker extends CompilerBaseVisitor<String> {
             throw new RuntimeException("Семантическая ошибка: Переменная '" + varName + "' не объявлена!");
         }
 
-        String type = symbolTable.get(varName);
+        String type = symbolTable.get(varName).trim();
 
         // еозвращаем тип переменной из таблицы
         nodeTypes.put(ctx, type);

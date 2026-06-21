@@ -301,6 +301,18 @@ public class CodeGenerator extends CompilerBaseVisitor<Void> implements Opcodes 
     }
 
     @Override
+    public Void visitBooleanLiteral(CompilerParser.BooleanLiteralContext ctx) {
+        String value = ctx.getText();
+
+        if ("true".equals(value))
+            mv.visitInsn(Opcodes.ICONST_1);
+        else
+            mv.visitInsn(Opcodes.ICONST_0);
+
+        return null;
+    }
+
+    @Override
     public Void visitAddSub(CompilerParser.AddSubContext ctx) {
         // узнаем точный тип этого математического узла из разметки TypeChecker
         String type = nodeTypes.get(ctx);

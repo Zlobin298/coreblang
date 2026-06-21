@@ -1,6 +1,6 @@
 class Main  {
     static void main(String[] args) {
         boolean result = true;
-        println(result);
+        println(!result);
     }
 }
